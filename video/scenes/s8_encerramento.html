@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+  .head { position: absolute; left: 110px; top: 150px; right: 110px; }
+  .head h1 { font-size: 66px; max-width: 1500px; }
+  .chips { position: absolute; left: 110px; right: 110px; top: 470px; display: flex; flex-wrap: wrap; gap: 18px; }
+  .chips .chip { font-size: 28px; padding: 14px 24px; }
+  .chips img { width: 34px; height: 34px; }
+  .next { position: absolute; left: 110px; top: 700px; font-size: 32px; display: flex; align-items: center; gap: 18px; }
+  .next code { font-family: Consolas, monospace; background: #0d1117; border: 1px solid #30363d; padding: 10px 18px; border-radius: 10px; color: #7ee787; }
+  .thanks { position: absolute; right: 110px; bottom: 120px; text-align: right; }
+  .thanks .t { font-size: 96px; font-weight: 800; background: linear-gradient(90deg, var(--orange), var(--pink)); -webkit-background-clip: text; color: transparent; }
+  .thanks div { font-size: 28px; color: var(--muted); }
+  .repo { position: absolute; left: 110px; bottom: 130px; display: flex; align-items: center; gap: 18px; font-size: 30px; }
+  .repo img { width: 56px; height: 56px; background: #fff; border-radius: 50%; padding: 4px; }
+</style></head>
+<body>
+  <div class="topline"><span><b>TechCommerce</b> · Arquitetura serverless</span><span>Cena 8 · Encerramento</span></div>
+  <div class="head">
+    <div class="kicker" data-at="0.2">Resultado</div>
+    <h1 data-at="0.3">Pedidos, pagamentos e relatórios processados <span class="hl-o">automaticamente</span>, com escala e custo sob controle</h1>
+  </div>
+  <div class="chips">
+    <span class="chip pop" data-at="2.0">4 fluxos automatizados</span>
+    <span class="chip pop" data-at="2.6"><img src="../assets/icons/aws-lambda.svg" alt="">7 funções Lambda</span>
+    <span class="chip pop" data-at="3.2"><img src="../assets/icons/aws-eventbridge.svg" alt="">EventBridge + Scheduler</span>
+    <span class="chip pop" data-at="3.8">Infraestrutura como código (SAM)</span>
+    <span class="chip pop" data-at="4.4">67 testes automatizados aprovados</span>
+  </div>
+  <div class="next" data-at="8.8">Próximo passo: implantar na AWS com <code>sam deploy --guided</code></div>
+  <div class="repo" data-at="10.5"><img src="../assets/icons/github-icon.svg" alt="">github.com/MatheusJuvino/techcommerce-serverless</div>
+  <div class="thanks" data-at="13.0"><div class="t">Obrigado!</div><div>Matheus Juvino da Silva · RA 147779</div></div>
+  <div class="footer"><span>UniFECAF · Cloud Computing for Software Development</span><span>Engenharia da Computação</span></div>
+  <script src="engine.js"></script>
+</body></html>

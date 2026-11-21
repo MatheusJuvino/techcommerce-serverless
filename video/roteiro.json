@@ -1,0 +1,81 @@
+{
+  "titulo": "TechCommerce — Automação de processos em nuvem com AWS Lambda e Amazon EventBridge",
+  "largura": 1920,
+  "altura": 1080,
+  "fps": 30,
+  "cenas": [
+    {
+      "id": "s1", "titulo": "Abertura e problema", "tipo": "slide", "pagina": "scenes/s1_abertura.html", "duracao": 25,
+      "falas": [
+        [0.5, "Olá! Eu sou Matheus Juvino da Silva e este é o projeto de automação de processos em nuvem para a TechCommerce, um e-commerce fictício."],
+        [10.5, "A empresa sofria com quatro problemas: pedidos demorando para ser processados, pagamentos que não atualizavam o pedido,"],
+        [18.0, "relatórios de vendas feitos à mão e equipes que não eram avisadas quando algo dava errado."]
+      ]
+    },
+    {
+      "id": "s2", "titulo": "Proposta", "tipo": "slide", "pagina": "scenes/s2_proposta.html", "duracao": 20,
+      "falas": [
+        [0.3, "A solução é uma arquitetura serverless orientada a eventos na AWS."],
+        [5.0, "Não existe servidor para administrar: cada etapa é uma função AWS Lambda,"],
+        [10.5, "e o Amazon EventBridge liga essas funções por meio de eventos."],
+        [15.5, "Assim, cada parte escala e falha de forma independente."]
+      ]
+    },
+    {
+      "id": "s3", "titulo": "Arquitetura", "tipo": "slide", "pagina": "scenes/s3_arquitetura.html", "duracao": 40,
+      "falas": [
+        [0.3, "O pedido chega pelo API Gateway."],
+        [3.2, "A função create_order valida os dados, grava no DynamoDB e publica o evento OrderReceived no barramento do EventBridge."],
+        [11.2, "A partir daí tudo é automático: uma regra entrega o evento à função process_order, que aplica as regras de negócio."],
+        [19.6, "Os pagamentos chegam como eventos TransactionStatusChanged;"],
+        [23.0, "o EventBridge Scheduler dispara o relatório diário, salvo em CSV no S3;"],
+        [28.4, "e a função de notificações avisa cada equipe pelo SNS."],
+        [33.0, "O CloudWatch concentra logs, métricas e alarmes."]
+      ]
+    },
+    {
+      "id": "s4", "titulo": "Lambda e EventBridge no template SAM", "tipo": "slide", "pagina": "scenes/s4_codigo.html", "duracao": 25,
+      "falas": [
+        [0.3, "Toda a infraestrutura está descrita como código com o AWS SAM."],
+        [5.2, "Aqui está a regra: ela filtra eventos pela origem e pelo tipo, tem retentativas e uma fila DLQ para o que falhar."],
+        [14.2, "E aqui o agendamento: todo dia às seis da manhã, no horário de São Paulo, o relatório é gerado sozinho."]
+      ]
+    },
+    {
+      "id": "s5", "titulo": "Demonstração: pedido automatizado", "tipo": "app", "acao": "demo_pedidos", "duracao": 50,
+      "falas": [
+        [0.3, "Agora a demonstração. Ela roda num ambiente local que simula o EventBridge e os serviços da AWS com o mesmo código das funções — não é a conta AWS."],
+        [11.8, "Envio um pedido... a API responde na hora com \"recebido\","],
+        [16.5, "e segundos depois o pedido aparece como aprovado."],
+        [20.5, "Repare no histórico: essa aprovação não foi pedida por ninguém, foi o EventBridge que acionou o Lambda."],
+        [28.5, "Agora o gateway de pagamento confirma a captura, e o pedido vira \"pago\"."],
+        [36.5, "Um pedido acima do limite é rejeitado automaticamente e o suporte é notificado."]
+      ]
+    },
+    {
+      "id": "s6", "titulo": "Demonstração: relatório agendado", "tipo": "app", "acao": "demo_relatorio", "duracao": 27,
+      "falas": [
+        [0.3, "No relatório, em vez de esperar até as seis da manhã, eu disparo o agendamento agora."],
+        [7.2, "A função consolida as vendas e grava dois arquivos CSV: o detalhe dos pedidos e o resumo,"],
+        [14.6, "com receita, ticket médio e produtos mais vendidos."],
+        [19.5, "A gestão recebe a notificação de que o relatório está pronto."]
+      ]
+    },
+    {
+      "id": "s7", "titulo": "Confiabilidade, segurança e custos", "tipo": "slide", "pagina": "scenes/s7_beneficios.html", "duracao": 27,
+      "falas": [
+        [0.3, "A solução trata eventos duplicados com idempotência, separa erros temporários de erros definitivos, usa retentativas, fila DLQ e alarmes."],
+        [9.2, "Cada função tem só as permissões de que precisa."],
+        [13.0, "São sessenta e sete testes automatizados aprovados."],
+        [16.4, "E, como é serverless, o custo acompanha o uso: a estimativa é de cerca de nove dólares por mês para trezentos mil pedidos."]
+      ]
+    },
+    {
+      "id": "s8", "titulo": "Encerramento", "tipo": "slide", "pagina": "scenes/s8_encerramento.html", "duracao": 17,
+      "falas": [
+        [0.3, "Com Lambda e EventBridge, a TechCommerce passa a processar pedidos, pagamentos e relatórios automaticamente, com escala e custo sob controle."],
+        [8.8, "O próximo passo é implantar o stack na AWS com um único comando do SAM. Obrigado!"]
+      ]
+    }
+  ]
+}

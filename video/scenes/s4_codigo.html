@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+  .head { position: absolute; left: 110px; top: 70px; }
+  .head h2 { font-size: 44px; } .head .sub { font-size: 24px; margin-top: 6px; }
+  .editor { position: absolute; left: 110px; top: 210px; width: 1130px; height: 790px; border-radius: 16px; overflow: hidden;
+    background: #0d1117; border: 1px solid #30363d; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+  .bar { height: 50px; background: #161b22; border-bottom: 1px solid #30363d; display: flex; align-items: center; gap: 10px; padding: 0 18px;
+    font: 19px Consolas, monospace; color: #c9d1d9; }
+  .bar i { width: 13px; height: 13px; border-radius: 50%; background: #ff5f56; } .bar i:nth-child(2) { background: #ffbd2e; } .bar i:nth-child(3) { background: #27c93f; }
+  .bar span { margin-left: 14px; padding: 6px 14px; background: #0d1117; border-radius: 8px 8px 0 0; }
+  .pane { position: absolute; left: 0; right: 0; top: 50px; bottom: 0; padding: 18px 0; transition: opacity .6s; }
+  .pane.hide { opacity: 0; }
+  .ln { display: flex; font: 21px/1.5 Consolas, "Cascadia Mono", monospace; white-space: pre; padding: 0 20px 0 0; border-left: 5px solid transparent;
+    transition: background .35s, border-color .35s; }
+  .ln .no { width: 70px; text-align: right; padding-right: 22px; color: #6e7681; flex: none; }
+  .ln.gap .no { color: #6e7681; } .ln.gap .code { color: #6e7681; }
+  .ln.hl { background: rgba(255,153,0,.16); border-left-color: var(--orange); }
+  .side { position: absolute; left: 1290px; right: 100px; top: 210px; display: flex; flex-direction: column; gap: 20px; }
+  .side .card { padding: 22px 24px; font-size: 25px; line-height: 1.35; }
+  .side .card b { display: block; font-size: 28px; margin-bottom: 4px; }
+  .side .card code { font-family: Consolas, monospace; color: #ffcf8a; font-size: 23px; }
+  .side .k { color: var(--orange); font-size: 18px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+  .side2 { opacity: 0; transition: opacity .5s; } .side2.show { opacity: 1; }
+  .stats { position: absolute; right: 100px; top: 92px; display: flex; gap: 12px; }
+  .stats .chip { font-size: 21px; padding: 8px 16px; }
+  /* tema github-dark (Pygments) */
+  .code .nt, .code .na { color: #7ee787; } .code .s, .code .s1, .code .s2, .code .l, .code .ld, .code .l-Scalar-Plain { color: #a5d6ff; }
+  .code .p, .code .pi { color: #c9d1d9; } .code .c, .code .c1 { color: #8b949e; } .code .kt, .code .nv { color: #ff7b72; }
+  .code { color: #c9d1d9; }
+</style></head>
+<body>
+  <div class="topline" style="justify-content:flex-end"><span>Cena 4 · Infraestrutura como código</span></div>
+  <div class="head" data-at="0">
+    <h2>AWS SAM: Lambda + EventBridge no template</h2>
+    <div class="sub">Arquivo real do projeto: <span style="font-family:Consolas">infrastructure/template.yaml</span></div>
+  </div>
+  <div class="stats">
+    <span class="chip pop" data-at="1.2">7 funções Lambda</span><span class="chip pop" data-at="1.6">4 regras + 1 agendamento</span>
+    <span class="chip pop" data-at="2.0">5 alarmes</span>
+  </div>
+  <div class="editor" data-at="0.3">
+    <div class="bar"><i></i><i></i><i></i><span>infrastructure/template.yaml</span></div>
+    <div class="pane" id="p1"></div>
+    <div class="pane hide" id="p2"></div>
+  </div>
+  <div class="side" id="side1">
+    <div class="card" data-at="6.4" data-out="14.1"><div class="k">Regra do EventBridge</div><b>Filtra pelo conteúdo</b><code>source</code> = techcommerce.orders<br><code>detail-type</code> = OrderReceived</div>
+    <div class="card" data-at="9.6" data-out="14.1"><div class="k">Resiliência</div><b>Retentativas</b>até 5 tentativas em até 1 hora</div>
+    <div class="card" data-at="11.6" data-out="14.1"><div class="k">Falhas</div><b>Fila DLQ (SQS)</b>eventos que esgotaram as tentativas</div>
+  </div>
+  <div class="side" id="side2">
+    <div class="card" data-at="15.8"><div class="k">EventBridge Scheduler</div><b>Todo dia às 06:00</b><code>cron(0 6 * * ? *)</code></div>
+    <div class="card" data-at="18.3"><div class="k">Fuso horário</div><b>America/Sao_Paulo</b>configurável por parâmetro</div>
+    <div class="card" data-at="20.6"><div class="k">Idempotência</div><b>Sem relatório duplicado</b>chave = horário programado</div>
+  </div>
+  <script src="generated/code.js"></script>
+  <script src="engine.js"></script>
+  <script>
+    $("#p1").innerHTML = CODE.rule; $("#p2").innerHTML = CODE.schedule;
+    const mark = (pane, keys) => {
+      $$(".ln.hl").forEach((l) => l.classList.remove("hl"));
+      keys.forEach((k) => $$(`#${pane} .ln[data-k~="${k}"]`).forEach((l) => l.classList.add("hl")));
+    };
+    at(2.6, () => mark("p1", ["fn"]));
+    at(6.2, () => mark("p1", ["pattern"]));
+    at(9.4, () => mark("p1", ["retry"]));
+    at(11.4, () => mark("p1", ["dlq"]));
+    at(14.2, () => { mark("p1", []); $("#p1").classList.add("hide"); $("#p2").classList.remove("hide"); });
+    at(15.6, () => mark("p2", ["cron"]));
+    at(18.1, () => mark("p2", ["tz"]));
+    at(20.4, () => mark("p2", ["input"]));
+  </script>
+</body></html>

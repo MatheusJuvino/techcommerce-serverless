@@ -3,6 +3,11 @@
 Complementa `entrega/roteiro_video_pitch.md`. Todos os comandos devem ser executados na pasta
 `techcommerce-serverless` (PowerShell no Windows).
 
+> O vídeo já é gerado automaticamente por `python video/build_video.py`, que executa exatamente
+> esta demonstração (cenas 5 e 6) num navegador controlado e grava a tela; basta narrar com
+> `python video/estudio_narracao.py`. Este documento serve para gravar a demonstração à mão, se
+> preferir, ou para refazê-la ao vivo depois de implantar na AWS.
+
 ## 1. Preparação (antes de gravar)
 
 ```powershell

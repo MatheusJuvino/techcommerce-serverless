@@ -25,3 +25,7 @@ Thumbs.db
 
 # Node (renderização de diagramas)
 node_modules/
+
+# Vídeo pitch (arquivos gerados; o vídeo final vai para o YouTube)
+entrega/video/
+video/scenes/generated/

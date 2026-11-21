@@ -107,6 +107,7 @@ techcommerce-serverless/
 ├── diagrams/                 # Mermaid (.md), fontes (.mmd) e PNG renderizados
 ├── docs/                     # fonte editável do relatório (Markdown)
 ├── entrega/                  # relatório PDF, roteiro do vídeo e evidências
+├── video/                    # gerador do vídeo pitch (cenas HTML + gravação da demo) e estúdio de narração
 ├── scripts/                  # execução local, demo, renderização, PDF, eventos de teste
 ├── .env.example
 ├── requirements.txt
@@ -311,7 +312,21 @@ No modo local, os mesmos logs JSON aparecem no terminal do `run_local.py`.
 |---|---|
 | Relatório técnico (25%) | [entrega/relatorio_tecnico.pdf](entrega/relatorio_tecnico.pdf) (fonte: [docs/relatorio_tecnico.md](docs/relatorio_tecnico.md); capa e link do vídeo: [docs/capa.json](docs/capa.json); gerar com `python scripts/build_report.py`) |
 | Parte prática (50%) | este repositório + [entrega/evidencias/](entrega/evidencias/) (`pytest_resultado.txt`, `pytest_junit.xml`, `validacao_template.txt`, `demo_flows_local.txt`, capturas da interface local) |
-| Roteiro do vídeo pitch (25%) | [entrega/roteiro_video_pitch.md](entrega/roteiro_video_pitch.md) + [entrega/sugestoes_cenas_demonstracao.md](entrega/sugestoes_cenas_demonstracao.md) |
+| Vídeo pitch (25%) | [entrega/roteiro_video_pitch.md](entrega/roteiro_video_pitch.md) (falas e tempos) + [entrega/sugestoes_cenas_demonstracao.md](entrega/sugestoes_cenas_demonstracao.md) |
+
+### Vídeo pitch
+
+O vídeo (3min51s) é gerado a partir de [video/roteiro.json](video/roteiro.json): slides animados em
+HTML, trecho real do `template.yaml`, linhas reais do resultado do `pytest` e a demonstração gravada
+automaticamente na interface web do ambiente local simulado (com selo indicando que não é a conta AWS).
+
+```powershell
+pip install -r video/requirements.txt   # Playwright (usa o Chrome instalado), ffmpeg embutido, Pygments
+python video/build_video.py              # entrega/video/video_pitch_sem_narracao.mp4 (+ versão guia com as falas)
+python video/estudio_narracao.py         # grava a narração com teleprompter → entrega/video/video_pitch_final.mp4
+```
+
+Os arquivos de `entrega/video/` não são versionados; o vídeo final é publicado no YouTube como não listado.
 
 Pendências antes da submissão: complementar as referências das Unidades 1 a 4 em
 `docs/relatorio_tecnico.md` e, após publicar o vídeo (YouTube, não listado), informar `video_url`

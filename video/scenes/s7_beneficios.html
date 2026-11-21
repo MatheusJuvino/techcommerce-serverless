@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+  .head { position: absolute; left: 110px; top: 70px; }
+  .head h2 { font-size: 44px; }
+  .cols { position: absolute; left: 110px; right: 110px; top: 170px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .cols .card { height: 400px; padding: 26px 30px; }
+  .cols h3 { font-size: 36px; margin: 0 0 18px; display: flex; align-items: center; gap: 14px; }
+  .cols h3 svg { width: 48px; height: 48px; }
+  .cols ul { list-style: none; padding: 0; margin: 0; font-size: 26px; line-height: 1.35; }
+  .cols li { margin-bottom: 16px; padding-left: 34px; position: relative; }
+  .cols li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 800; }
+  .rel h3 { color: var(--blue); } .sec h3 { color: var(--green); } .eco h3 { color: var(--orange); }
+  .big { font-size: 74px; font-weight: 800; color: var(--orange); line-height: 1; margin: 6px 0 6px; }
+  .eco p { font-size: 22px; color: var(--muted); margin: 0 0 14px; line-height: 1.35; }
+  .term { position: absolute; left: 110px; right: 110px; top: 600px; height: 410px; border-radius: 16px; overflow: hidden;
+    background: #0c0f14; border: 1px solid #2d333b; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+  .term .bar { height: 44px; background: #161b22; display: flex; align-items: center; gap: 9px; padding: 0 16px; color: #8b949e;
+    font: 18px Consolas, monospace; }
+  .term .bar i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f56; } .term .bar i:nth-child(2) { background: #ffbd2e; }
+  .term .bar i:nth-child(3) { background: #27c93f; }
+  .term pre { margin: 0; padding: 16px 22px; font: 21px/1.5 Consolas, monospace; color: #c9d1d9; white-space: pre; }
+  .term .ok { color: #3fb950; } .term .sk { color: #d29922; } .term .cmd { color: #79c0ff; } .term .sum { color: #3fb950; font-weight: 700; }
+  .term .src { margin-left: auto; color: #6e7681; font: 17px "Segoe UI", sans-serif; }
+</style></head>
+<body>
+  <div class="topline" style="justify-content:flex-end"><span>Cena 7 · Benefícios</span></div>
+  <div class="head" data-at="0"><h2>Confiável, seguro e econômico</h2></div>
+  <div class="cols">
+    <div class="card rel" data-at="0.4">
+      <h3><svg class="lineicon" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>Confiável</h3>
+      <ul>
+        <li data-at="1.6">Idempotência: evento duplicado é ignorado</li>
+        <li data-at="4.2">Erros temporários × erros definitivos</li>
+        <li data-at="6.6">Retentativas, fila DLQ e alarmes</li>
+      </ul>
+    </div>
+    <div class="card sec" data-at="9.2">
+      <h3><svg class="lineicon" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Seguro</h3>
+      <ul>
+        <li data-at="9.6">IAM de privilégio mínimo por função</li>
+        <li data-at="10.6">Nenhuma credencial no código</li>
+        <li data-at="11.6">S3 criptografado e acessível só via TLS</li>
+      </ul>
+    </div>
+    <div class="card eco" data-at="16.4">
+      <h3><svg class="lineicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5c-.5-1-1.5-1.5-2.5-1.5-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2c-1 0-2-.5-2.5-1.5M12 6.5V8M12 16v1.5"/></svg>Econômico</h3>
+      <p data-at="17">Paga por uso — sem servidor ocioso</p>
+      <div class="big" data-at="19">~US$ 9/mês</div>
+      <p data-at="19.5">estimativa para 300 mil pedidos/mês<br>(preços públicos da AWS, us-east-1)</p>
+      <p data-at="21.5">vs. ~US$ 60/mês só com 2 instâncias EC2 ligadas 24×7</p>
+    </div>
+  </div>
+  <div class="term" data-at="12.8">
+    <div class="bar"><i></i><i></i><i></i><span style="margin-left:12px">PowerShell — techcommerce-serverless</span>
+      <span class="src">saída real: entrega/evidencias/pytest_resultado.txt</span></div>
+    <pre id="out"></pre>
+  </div>
+  <script src="generated/pytest.js"></script>
+  <script src="engine.js"></script>
+  <script>
+    const out = $("#out");
+    const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const fmt = (l) => esc(l).replace(/PASSED/g, '<span class="ok">PASSED</span>').replace(/SKIPPED/g, '<span class="sk">SKIPPED</span>');
+    at(13.2, () => { out.innerHTML = '<span class="cmd">PS&gt; python -m pytest -v</span>\n'; });
+    PYTEST.lines.forEach((l, i) => at(13.7 + i * 0.22, () => { out.innerHTML += fmt(l) + "\n"; }));
+    at(13.7 + PYTEST.lines.length * 0.22 + 0.2, () => { out.innerHTML += `<span class="sum">${esc(PYTEST.summary)}</span>`; });
+  </script>
+</body></html>

@@ -1,0 +1,4 @@
+# Ferramentas do vídeo pitch (não fazem parte das funções Lambda)
+playwright>=1.47
+imageio-ffmpeg>=0.5
+pygments>=2.18

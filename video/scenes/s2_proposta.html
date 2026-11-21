@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+  .head { position: absolute; left: 110px; top: 110px; }
+  .noserver { position: absolute; left: 110px; top: 330px; width: 520px; height: 560px; }
+  .noserver .srv { position: relative; width: 150px; height: 150px; color: var(--muted); }
+  .noserver .srv svg { width: 150px; height: 150px; }
+  .noserver .srv .x { position: absolute; inset: 0; }
+  .noserver h3 { font-size: 38px; margin: 20px 0 14px; }
+  .noserver ul { padding: 0; margin: 0; list-style: none; font-size: 27px; color: var(--muted); line-height: 1.5; }
+  .noserver li::before { content: "✓ "; color: var(--green); font-weight: 700; }
+
+  .stage { position: absolute; left: 700px; right: 110px; top: 300px; height: 620px; }
+  .fns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+  .fn { position: relative; background: #fff; color: #1b2433; border-radius: 18px; padding: 18px 10px 16px; text-align: center;
+    box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+  .fn img { width: 70px; height: 70px; }
+  .fn div { font-size: 19px; font-weight: 700; margin-top: 8px; font-family: Consolas, monospace; }
+  .fn::before, .fn::after { content: ""; position: absolute; inset: 0; border-radius: 18px; background: #fff; z-index: -1;
+    opacity: 0; transition: transform .6s, opacity .6s; }
+  .scale .fn::before { opacity: .55; transform: translate(10px, -10px); }
+  .scale .fn::after { opacity: .3; transform: translate(20px, -20px); }
+  .wires { position: relative; height: 150px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+  .wire { position: relative; justify-self: center; width: 4px; height: 100%; background: rgba(231,21,123,.35); border-radius: 4px; overflow: hidden; }
+  .wire i { position: absolute; left: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--pink);
+    box-shadow: 0 0 16px var(--pink); bottom: -14px; opacity: 0; }
+  .flow .wire i { animation: up 1.4s linear infinite; opacity: 1; }
+  .flow .wire:nth-child(2) i { animation-delay: .35s; } .flow .wire:nth-child(3) i { animation-delay: .7s; }
+  .flow .wire:nth-child(4) i { animation-delay: .2s; } .flow .wire:nth-child(5) i { animation-delay: .55s; }
+  @keyframes up { from { bottom: -14px; } to { bottom: 100%; } }
+  .bus { display: flex; align-items: center; gap: 22px; padding: 22px 30px; border-radius: 20px;
+    background: linear-gradient(90deg, rgba(231,21,123,.25), rgba(231,21,123,.08)); border: 2px solid var(--pink); }
+  .bus img { width: 74px; height: 74px; background: #fff; border-radius: 14px; padding: 6px; }
+  .bus b { font-size: 34px; } .bus span { display: block; color: #f3b6d2; font-size: 24px; }
+  .badges { position: absolute; left: 0; right: 0; bottom: -10px; display: flex; gap: 20px; justify-content: center; }
+  .badges .chip { font-size: 26px; }
+</style></head>
+<body>
+  <div class="topline"><span><b>TechCommerce</b> · Arquitetura serverless</span><span>Cena 2 · A solução</span></div>
+  <div class="head">
+    <div class="kicker" data-at="0.2">A solução</div>
+    <h1 data-at="0.3">Arquitetura <span class="hl-o">serverless</span> orientada a <span class="hl-p">eventos</span></h1>
+  </div>
+
+  <div class="noserver card" data-at="5">
+    <div class="srv">
+      <svg class="lineicon" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="7" rx="1.5"/><rect x="4" y="14" width="16" height="7" rx="1.5"/><path d="M8 6.5h.01M8 17.5h.01"/></svg>
+      <svg class="lineicon x" viewBox="0 0 24 24" style="color: var(--red); stroke-width: 2.2"><path d="M3 3l18 18"/></svg>
+    </div>
+    <h3>Sem servidores para administrar</h3>
+    <ul><li>Escala e disponibilidade gerenciadas pela AWS</li><li>Cada etapa é uma função Lambda</li><li>Paga apenas pelas execuções</li></ul>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="fns">
+      <div class="fn pop" data-at="6.4"><img src="../assets/icons/aws-lambda.svg" alt=""><div>create_order</div></div>
+      <div class="fn pop" data-at="6.8"><img src="../assets/icons/aws-lambda.svg" alt=""><div>process_order</div></div>
+      <div class="fn pop" data-at="7.2"><img src="../assets/icons/aws-lambda.svg" alt=""><div>update_transaction</div></div>
+      <div class="fn pop" data-at="7.6"><img src="../assets/icons/aws-lambda.svg" alt=""><div>generate_report</div></div>
+      <div class="fn pop" data-at="8.0"><img src="../assets/icons/aws-lambda.svg" alt=""><div>notification</div></div>
+    </div>
+    <div class="wires" id="wires" data-at="11"><div class="wire"><i></i></div><div class="wire"><i></i></div><div class="wire"><i></i></div><div class="wire"><i></i></div><div class="wire"><i></i></div></div>
+    <div class="bus" data-at="10.8">
+      <img src="../assets/icons/aws-eventbridge.svg" alt="">
+      <div><b>Amazon EventBridge</b><span>Eventos de domínio conectam as funções (regras por origem e tipo)</span></div>
+    </div>
+    <div class="badges">
+      <span class="chip pop" data-at="15.8">↗ escala por função</span>
+      <span class="chip pop" data-at="16.6">🛡 falhas isoladas</span>
+      <span class="chip pop" data-at="17.4">⚡ execução automática</span>
+    </div>
+  </div>
+
+  <div class="footer"><span>Matheus Juvino da Silva · RA 147779</span><span>AWS Lambda + Amazon EventBridge</span></div>
+  <script src="engine.js"></script>
+  <script>
+    at(11.6, () => $("#wires").classList.add("flow"));
+    at(15.6, () => $("#stage").classList.add("scale"));
+  </script>
+</body></html>

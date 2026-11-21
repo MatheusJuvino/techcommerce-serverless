@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Estúdio de narração · TechCommerce</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg: #0b1020; --panel: #141b2e; --line: #26304a; --text: #e8ecf5; --muted: #8d97ad;
+          --orange: #ff9900; --green: #2ecc71; --red: #ff4d5e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 "Segoe UI", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; }
+  header h1 span { color: var(--orange); }
+  .mic { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--muted); }
+  select, button { font: inherit; }
+  select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; max-width: 340px; }
+  .meter { width: 130px; height: 8px; background: #1d2640; border-radius: 4px; overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--green) 60%, var(--orange) 85%, var(--red)); }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; padding: 20px 24px; }
+  .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; }
+  .stage video { width: 100%; height: 100%; display: block; }
+  .count { position: absolute; inset: 0; display: none; place-items: center; background: rgba(0, 0, 0, .55);
+           font-size: 160px; font-weight: 800; color: var(--orange); }
+  .count.on { display: grid; }
+  .rec { position: absolute; top: 14px; left: 14px; display: none; align-items: center; gap: 8px;
+         background: rgba(0, 0, 0, .65); padding: 6px 12px; border-radius: 20px; font-weight: 600; }
+  .rec.on { display: flex; }
+  .rec::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--red); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+  .timeline { position: relative; height: 34px; margin-top: 12px; display: flex; gap: 3px; }
+  .seg { flex: var(--d); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+         font-size: 12px; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+  .seg.done { border-color: var(--green); color: var(--green); }
+  .seg.sel { outline: 2px solid var(--orange); }
+  .playhead { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--orange); left: 0; pointer-events: none; }
+  .prompter { margin-top: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 22px; min-height: 170px; }
+  .prompter .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
+  .prompter .now { font-size: 28px; line-height: 1.35; font-weight: 600; margin: 10px 0 10px; }
+  .prompter .bar { height: 4px; background: #1d2640; border-radius: 2px; overflow: hidden; }
+  .prompter .bar i { display: block; height: 100%; width: 0; background: var(--orange); }
+  .prompter .next { color: var(--muted); font-size: 18px; margin-top: 12px; }
+  .prompter .next b { color: var(--text); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin-right: 6px; }
+  aside .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+  aside h2 { font-size: 13px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  aside select { width: 100%; max-width: none; }
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  button { border: 0; border-radius: 8px; padding: 10px 16px; font-weight: 600; cursor: pointer; background: #26304a; color: var(--text); }
+  button.primary { background: var(--red); color: #fff; }
+  button:disabled { opacity: .4; cursor: default; }
+  ol { padding-left: 18px; margin: 0; color: var(--muted); }
+  li { margin: 5px 0; }
+  li b { color: var(--text); }
+  .status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 20px; }
+  .status.ok { color: var(--green); }
+  .status.err { color: var(--red); }
+  .result video { width: 100%; border-radius: 8px; margin-top: 10px; background: #000; display: none; }
+  .result video.on { display: block; }
+  code { background: #1d2640; padding: 1px 6px; border-radius: 4px; font-size: 13px; word-break: break-all; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Estúdio de narração · <span>TechCommerce</span></h1>
+  <div class="mic">Microfone <select id="mic"></select><div class="meter"><i id="level"></i></div></div>
+</header>
+<main>
+  <section>
+    <div class="stage">
+      <video id="video" src="/video" muted playsinline preload="auto"></video>
+      <div class="count" id="count">3</div>
+      <div class="rec" id="rec">GRAVANDO</div>
+    </div>
+    <div class="timeline" id="timeline"><div class="playhead" id="playhead"></div></div>
+    <div class="prompter">
+      <div class="meta"><span id="scene">—</span><span id="clock">0:00 / 0:00</span></div>
+      <div class="now" id="now">Escolha a cena e clique em Gravar.</div>
+      <div class="bar"><i id="cuebar"></i></div>
+      <div class="next" id="next"></div>
+    </div>
+  </section>
+  <aside>
+    <div class="card">
+      <h2>Gravação</h2>
+      <select id="range"></select>
+      <div class="btns">
+        <button class="primary" id="btnRec">● Gravar</button>
+        <button id="btnRehearse">Ensaiar</button>
+        <button id="btnStop" disabled>■ Parar (Esc)</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+    <div class="card">
+      <h2>Como usar</h2>
+      <ol>
+        <li>Escolha <b>Vídeo inteiro</b> ou uma cena (também dá para clicar nos números abaixo do vídeo).</li>
+        <li>Clique em <b>Gravar</b>: contagem 3-2-1 e o vídeo começa.</li>
+        <li>Leia a fala em destaque; a barra laranja mostra o tempo dela e a próxima aparece embaixo.</li>
+        <li>Errou? Regrave só aquela cena: o resto da narração é mantido.</li>
+        <li>O vídeo não tem som, então não precisa de fone.</li>
+      </ol>
+    </div>
+    <div class="card result">
+      <h2>Resultado</h2>
+      <div id="resultInfo" class="status">Nenhuma narração gravada ainda.</div>
+      <video id="final" controls preload="metadata"></video>
+    </div>
+  </aside>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const video = $("#video"), finalPlayer = $("#final"), countEl = $("#count");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+const status = (msg, cls = "") => { const el = $("#status"); el.textContent = msg; el.className = "status " + cls; };
+
+let S = null, seg = null, stream = null, analyser = null, audioCtx = null, recorder = null, chunks = [];
+let mode = null, runId = 0, finishing = false, recStartedAt = 0, playStartedAt = 0;
+
+function covered(c) {
+  const parts = S.trechos.map((t) => [Math.max(t.inicio, c.inicio), Math.min(t.fim, c.fim)]).filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0]);
+  let total = 0, end = c.inicio;
+  for (const [a, b] of parts) { if (b > end) { total += b - Math.max(a, end); end = b; } }
+  return total >= (c.fim - c.inicio) * 0.9;
+}
+
+async function loadState(data) {
+  S = data || await (await fetch("/api/estado")).json();
+  const sel = $("#range"), prev = sel.value;
+  sel.innerHTML = `<option value="all">Vídeo inteiro (${fmt(S.duracao)})</option>` + S.cenas.map((c, i) =>
+    `<option value="${i}">Cena ${i + 1} · ${c.titulo} (${fmt(c.inicio)}–${fmt(c.fim)})${covered(c) ? "  ✓" : ""}</option>`).join("");
+  sel.value = prev || "all";
+  const tl = $("#timeline");
+  tl.querySelectorAll(".seg").forEach((e) => e.remove());
+  S.cenas.forEach((c, i) => {
+    const el = document.createElement("div");
+    el.className = "seg" + (covered(c) ? " done" : "");
+    el.style.setProperty("--d", c.fim - c.inicio);
+    el.textContent = i + 1;
+    el.title = c.titulo;
+    el.onclick = () => { if (!mode) { sel.value = i; selectRange(); } };
+    tl.insertBefore(el, $("#playhead"));
+  });
+  selectRange();
+  if (S.final) {
+    finalPlayer.src = "/final?v=" + Date.now();
+    finalPlayer.classList.add("on");
+    const pending = S.cenas.filter((c) => !covered(c)).map((c) => S.cenas.indexOf(c) + 1);
+    $("#resultInfo").innerHTML = `Arquivo final: <code>${S.final_path}</code>` +
+      (pending.length ? `<br>Cenas ainda sem narração: ${pending.join(", ")}` : "<br>Todas as cenas narradas.");
+    $("#resultInfo").className = "status ok";
+  }
+}
+
+function selectRange() {
+  const v = $("#range").value;
+  seg = v === "all" ? { inicio: 0, fim: S.duracao } : S.cenas[+v];
+  document.querySelectorAll(".seg").forEach((el, i) => el.classList.toggle("sel", v !== "all" && i === +v));
+  if (!mode) video.currentTime = seg.inicio + 0.05;
+}
+
+function prompter(t) {
+  const f = S.falas;
+  let i = f.findLastIndex((c) => c.inicio <= t + 0.6);
+  if (i < 0) i = 0;
+  const now = f[i], next = f[i + 1];
+  const cena = S.cenas.find((c) => c.id === now.cena);
+  $("#scene").textContent = `Cena ${S.cenas.indexOf(cena) + 1} · ${cena.titulo}`;
+  $("#clock").textContent = `${fmt(t)} / ${fmt(S.duracao)}`;
+  $("#now").textContent = now.texto;
+  $("#cuebar").style.width = `${Math.max(0, Math.min(1, (t - now.inicio) / (now.fim - now.inicio))) * 100}%`;
+  $("#next").innerHTML = next ? `<b>Depois</b>${next.texto}` : "";
+}
+
+function tick() {
+  if (S) {
+    const t = video.currentTime;
+    $("#playhead").style.left = `${(t / S.duracao) * 100}%`;
+    prompter(mode && countEl.classList.contains("on") ? seg.inicio : t);
+    if (mode && playStartedAt && t >= seg.fim - 0.03) finish();
+  }
+  if (analyser) {
+    const buf = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(buf);
+    const rms = Math.sqrt(buf.reduce((s, x) => s + x * x, 0) / buf.length);
+    $("#level").style.width = `${Math.min(100, rms * 500)}%`;
+  }
+  requestAnimationFrame(tick);
+}
+
+async function setupMic(deviceId) {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({ audio: {
+    deviceId: deviceId ? { exact: deviceId } : undefined, channelCount: 1,
+    echoCancellation: false, noiseSuppression: true, autoGainControl: false } });
+  audioCtx = audioCtx || new AudioContext();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 1024;
+  audioCtx.createMediaStreamSource(stream).connect(analyser);
+  const current = stream.getAudioTracks()[0].getSettings().deviceId;
+  const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+  $("#mic").innerHTML = devices.map((d) =>
+    `<option value="${d.deviceId}" ${d.deviceId === current ? "selected" : ""}>${d.label || "Microfone"}</option>`).join("");
+}
+
+function lockUI(on) {
+  $("#btnRec").disabled = $("#btnRehearse").disabled = $("#range").disabled = $("#mic").disabled = on;
+  $("#btnStop").disabled = !on;
+}
+
+function seekTo(t) {
+  return new Promise((r) => { video.addEventListener("seeked", r, { once: true }); video.currentTime = t; });
+}
+
+async function start(record) {
+  if (mode) return;
+  audioCtx?.resume();
+  if (record && !stream) {
+    try { await setupMic(); } catch (e) { status("Não consegui acessar o microfone: " + e.message, "err"); return; }
+  }
+  const run = ++runId;
+  mode = record ? "record" : "rehearse";
+  playStartedAt = 0;
+  lockUI(true);
+  finalPlayer.pause();
+  video.pause();
+  await seekTo(seg.inicio);
+  if (record) {
+    chunks = [];
+    const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm"].find((m) => MediaRecorder.isTypeSupported(m));
+    recorder = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 160000 } : undefined);
+    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    await new Promise((r) => { recorder.onstart = r; recorder.start(250); });
+    recStartedAt = performance.now();
+    $("#rec").classList.add("on");
+  }
+  for (const n of [3, 2, 1]) {
+    countEl.textContent = n;
+    countEl.classList.add("on");
+    status(record ? "Prepare-se: a gravação já começou, fale quando o vídeo andar." : "Ensaio: nada será gravado.");
+    await sleep(1000);
+    if (run !== runId) return;
+  }
+  countEl.classList.remove("on");
+  await video.play();
+  playStartedAt = performance.now() - (video.currentTime - seg.inicio) * 1000;
+}
+
+async function finish() {
+  if (!mode || finishing) return;
+  finishing = true;
+  runId++;
+  const end = Math.min(video.currentTime, seg.fim), record = mode === "record", played = playStartedAt > 0;
+  video.pause();
+  countEl.classList.remove("on");
+  $("#rec").classList.remove("on");
+  if (record) {
+    const blob = await new Promise((r) => {
+      recorder.onstop = () => r(new Blob(chunks, { type: recorder.mimeType || "audio/webm" }));
+      recorder.stop();
+    });
+    if (played && end - seg.inicio > 1) await upload(blob, (playStartedAt - recStartedAt) / 1000, seg.inicio, end);
+    else status("Gravação cancelada.");
+  } else {
+    status("Ensaio encerrado.");
+  }
+  mode = null;
+  playStartedAt = 0;
+  finishing = false;
+  lockUI(false);
+}
+
+async function upload(blob, offset, inicio, fim) {
+  status("Processando a narração… (alguns segundos)");
+  finalPlayer.removeAttribute("src");
+  finalPlayer.load();
+  const q = new URLSearchParams({ offset: offset.toFixed(3), inicio: inicio.toFixed(3), fim: fim.toFixed(3) });
+  try {
+    const res = await fetch("/api/trecho?" + q, { method: "POST", headers: { "Content-Type": blob.type }, body: blob });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro);
+    mode = null;
+    await loadState(data);
+    status(`Trecho ${fmt(inicio)}–${fmt(fim + 0.5)} gravado e aplicado ao vídeo final.`, "ok");
+  } catch (e) {
+    status("Erro ao processar: " + e.message, "err");
+  }
+}
+
+$("#range").onchange = selectRange;
+$("#mic").onchange = (e) => setupMic(e.target.value).catch((err) => status(err.message, "err"));
+$("#btnRec").onclick = () => start(true);
+$("#btnRehearse").onclick = () => start(false);
+$("#btnStop").onclick = finish;
+video.addEventListener("ended", finish);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") finish(); });
+document.addEventListener("click", () => audioCtx?.resume());
+
+loadState().then(() => {
+  requestAnimationFrame(tick);
+  setupMic().catch(() => status("Permita o acesso ao microfone quando o navegador pedir.", "err"));
+});
+</script>
+</body>
+</html>

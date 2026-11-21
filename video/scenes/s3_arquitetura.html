@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+  .head { position: absolute; left: 110px; top: 70px; }
+  .head h2 { font-size: 44px; } .head .sub { font-size: 24px; margin-top: 6px; }
+  #edges { position: absolute; inset: 0; }
+  #edges path.e { fill: none; stroke: #3a4d72; stroke-width: 3; transition: stroke .4s, stroke-width .4s; }
+  #edges path.e.on { stroke: #c7d6f2; stroke-width: 4; }
+  .node { position: absolute; width: 176px; padding: 14px 8px 12px; border-radius: 18px; background: #f7f9fc; color: #18233a;
+    text-align: center; box-shadow: 0 14px 34px rgba(0,0,0,.35); transform: translate(-50%, -50%);
+    transition: box-shadow .35s, transform .35s; }
+  .node img { width: 62px; height: 62px; display: block; margin: 0 auto 6px; }
+  .node b { display: block; font-size: 18px; line-height: 1.2; }
+  .node small { display: block; font-size: 15px; color: #5b6a85; margin-top: 2px; }
+  .node.fn b { font-family: Consolas, monospace; font-size: 17px; white-space: nowrap; }
+  .node.big { width: 230px; padding: 20px 10px; } .node.big img { width: 84px; height: 84px; }
+  .node.hot { transform: translate(-50%, -50%) scale(1.08); box-shadow: 0 0 0 5px var(--c, var(--orange)), 0 0 46px var(--c, var(--orange)); }
+  .pk { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: var(--c);
+    box-shadow: 0 0 0 5px rgba(255,255,255,.25), 0 0 26px var(--c); z-index: 5; }
+  .pk span { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); white-space: nowrap; font-size: 19px; font-weight: 700;
+    padding: 5px 12px; border-radius: 99px; background: var(--c); color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+  .tag { position: absolute; transform: translate(-50%, -50%); font-size: 18px; font-weight: 700; padding: 6px 14px; border-radius: 99px;
+    color: #fff; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+  .teams { position: absolute; left: 1752px; top: 742px; display: flex; flex-direction: column; gap: 8px; }
+  .teams span { font-size: 16px; padding: 4px 10px; border-radius: 8px; background: rgba(140,108,255,.25); border: 1px solid var(--purple); }
+  .band { position: absolute; left: 110px; right: 110px; top: 958px; height: 84px; border-radius: 18px; display: flex; align-items: center;
+    gap: 26px; padding: 0 26px; background: rgba(255,255,255,.05); border: 1px dashed #3d5179; transition: box-shadow .4s, border-color .4s; }
+  .band img { width: 52px; height: 52px; background: #fff; border-radius: 10px; padding: 4px; }
+  .band b { font-size: 24px; } .band .chip { font-size: 19px; padding: 6px 14px; }
+  .band.hot { border: 2px solid #e7157b; box-shadow: 0 0 40px rgba(231,21,123,.55); }
+</style></head>
+<body>
+  <div class="topline" style="justify-content:flex-end"><span>Cena 3 · Arquitetura</span></div>
+  <div class="head" data-at="0">
+    <h2>Arquitetura proposta</h2>
+    <div class="sub">Tudo o que acontece depois da API é disparado por eventos</div>
+  </div>
+  <svg id="edges" width="1920" height="1080">
+    <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#5d73a0"/></marker></defs>
+  </svg>
+  <div id="nodes"></div>
+  <div class="teams" id="teams">
+    <span data-at="31.6">logística</span><span data-at="31.9">suporte</span><span data-at="32.2">financeiro</span>
+    <span data-at="32.5">operações</span><span data-at="32.8">gestão</span>
+  </div>
+  <div class="band" id="band" data-at="0.4">
+    <img src="../assets/icons/aws-cloudwatch.svg" alt=""><b>Amazon CloudWatch</b>
+    <span class="chip" data-at="33.6">logs JSON com correlationId</span>
+    <span class="chip" data-at="34.1">métricas (EMF)</span>
+    <span class="chip" data-at="34.6">5 alarmes</span>
+    <img src="../assets/icons/aws-sqs.svg" alt="" style="margin-left:auto"><span class="chip" data-at="35.1">SQS DLQ para falhas</span>
+  </div>
+  <script src="engine.js"></script>
+  <script>
+    const I = (n) => `../assets/icons/${n}.svg`;
+    const N = {
+      client:  { x: 150,  y: 520, icon: "html-5", label: "Cliente", sub: "front-end / e-commerce" },
+      api:     { x: 390,  y: 520, icon: "aws-api-gateway", label: "API Gateway", sub: "POST /orders" },
+      create:  { x: 640,  y: 380, icon: "aws-lambda", label: "create_order", fn: true },
+      demo:    { x: 640,  y: 690, icon: "aws-lambda", label: "demo_events", sub: "gateway de pagamento (simulado)", fn: true },
+      bus:     { x: 960,  y: 535, icon: "aws-eventbridge", label: "Amazon EventBridge", sub: "barramento + regras", big: true },
+      sched:   { x: 960,  y: 845, icon: "aws-eventbridge", label: "EventBridge Scheduler", sub: "cron 06:00 · São Paulo" },
+      process: { x: 1300, y: 235, icon: "aws-lambda", label: "process_order", fn: true },
+      tx:      { x: 1300, y: 435, icon: "aws-lambda", label: "update_transaction", fn: true },
+      report:  { x: 1300, y: 635, icon: "aws-lambda", label: "generate_sales_report", fn: true },
+      notify:  { x: 1300, y: 835, icon: "aws-lambda", label: "notification_dispatcher", fn: true },
+      ddb:     { x: 1640, y: 335, icon: "aws-dynamodb", label: "DynamoDB", sub: "pedidos · idempotência" },
+      s3:      { x: 1640, y: 635, icon: "aws-s3", label: "Amazon S3", sub: "relatórios CSV" },
+      sns:     { x: 1640, y: 835, icon: "aws-sns", label: "Amazon SNS", sub: "notificações" },
+    };
+    for (const n of Object.values(N)) n.w = n.big ? 230 : n.fn ? Math.max(176, Math.round(n.label.length * 9.4 + 30)) : 176;
+    const box = (n) => ({ w: n.w, h: n.big ? 190 : 150 });
+    const side = (k, s, dy = 0) => {
+      const n = N[k], b = box(n);
+      return { r: [n.x + b.w / 2, n.y + dy], l: [n.x - b.w / 2, n.y + dy], t: [n.x + dy, n.y - b.h / 2], b: [n.x + dy, n.y + b.h / 2] }[s];
+    };
+    const curve = (a, b, horiz = true) => {
+      const d = horiz ? Math.max(60, (b[0] - a[0]) * 0.5) : Math.max(60, Math.abs(b[1] - a[1]) * 0.5);
+      return horiz ? `M${a} C${a[0] + d},${a[1]} ${b[0] - d},${b[1]} ${b}` : `M${a} C${a[0]},${a[1] - d} ${b[0]},${b[1] + d} ${b}`;
+    };
+    const E = {
+      client_api:  curve(side("client", "r"), side("api", "l")),
+      api_create:  curve(side("api", "r", -20), side("create", "l")),
+      api_demo:    curve(side("api", "r", 20), side("demo", "l")),
+      create_bus:  curve(side("create", "r"), side("bus", "l", -40)),
+      demo_bus:    curve(side("demo", "r"), side("bus", "l", 40)),
+      create_ddb:  `M${side("create", "t")} C640,40 1640,40 ${side("ddb", "t")}`,
+      bus_process: curve(side("bus", "r", -50), side("process", "l")),
+      bus_tx:      curve(side("bus", "r", -18), side("tx", "l")),
+      bus_report:  curve(side("bus", "r", 18), side("report", "l", -20)),
+      bus_notify:  curve(side("bus", "r", 50), side("notify", "l")),
+      sched_report: curve(side("sched", "r"), side("report", "l", 25)),
+      process_ddb: curve(side("process", "r"), side("ddb", "l", -25)),
+      tx_ddb:      curve(side("tx", "r"), side("ddb", "l", 25)),
+      report_s3:   curve(side("report", "r"), side("s3", "l")),
+      notify_sns:  curve(side("notify", "r"), side("sns", "l")),
+    };
+    const svg = $("#edges");
+    for (const [id, d] of Object.entries(E)) {
+      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      p.setAttribute("d", d); p.setAttribute("id", "e_" + id); p.setAttribute("class", "e"); p.setAttribute("marker-end", "url(#arr)");
+      svg.appendChild(p);
+    }
+    for (const [id, n] of Object.entries(N)) {
+      const el = document.createElement("div");
+      el.className = `node${n.fn ? " fn" : ""}${n.big ? " big" : ""}`; el.id = "n_" + id;
+      el.style.left = n.x + "px"; el.style.top = n.y + "px"; el.style.width = n.w + "px";
+      el.innerHTML = `<img src="${I(n.icon)}" alt=""><b>${n.label}</b>${n.sub ? `<small>${n.sub}</small>` : ""}`;
+      $("#nodes").appendChild(el);
+    }
+    $("#edges").setAttribute("data-at", "0.2"); $("#nodes").setAttribute("data-at", "0.2");
+
+    const C = { api: "#ff9900", ev: "#e7157b", db: "#2f9e6a", sch: "#8c6cff", out: "#4d9fff" };
+    function hot(id, color, ms = 2600) {
+      const el = id === "band" ? $("#band") : $("#n_" + id);
+      el.style.setProperty("--c", color); el.classList.add("hot");
+      setTimeout(() => el.classList.remove("hot"), ms);
+    }
+    function packet(edge, color, label, dur = 1.1) {
+      const path = $("#e_" + edge), len = path.getTotalLength();
+      const pk = document.createElement("div"); pk.className = "pk"; pk.style.setProperty("--c", color);
+      if (label) pk.innerHTML = `<span>${label}</span>`;
+      document.body.appendChild(pk); path.classList.add("on");
+      const t0 = performance.now();
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / (dur * 1000)), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        const pt = path.getPointAtLength(e * len); pk.style.left = pt.x + "px"; pk.style.top = pt.y + "px";
+        if (k < 1) requestAnimationFrame(step); else { setTimeout(() => { pk.remove(); path.classList.remove("on"); }, 250); }
+      };
+      requestAnimationFrame(step);
+    }
+    function tag(text, x, y, color, t, until) {
+      const el = document.createElement("div"); el.className = "tag"; el.textContent = text;
+      el.style.left = x + "px"; el.style.top = y + "px"; el.style.background = color; el.setAttribute("data-at", t);
+      if (until) el.setAttribute("data-out", until);
+      document.body.appendChild(el);
+    }
+
+    // Narração 1-2: API Gateway -> create_order -> DynamoDB + OrderReceived
+    at(0.5, () => packet("client_api", C.api, "POST /orders"));
+    at(1.5, () => hot("api", C.api));
+    at(3.4, () => packet("api_create", C.api));
+    at(4.4, () => hot("create", C.api));
+    tag("valida o pedido", 640, 290, "#b5651d", 4.6, 10.5);
+    at(6.0, () => packet("create_ddb", C.db, "status RECEIVED", 1.6));
+    at(7.6, () => hot("ddb", C.db));
+    at(8.2, () => packet("create_bus", C.ev, "OrderReceived"));
+    at(9.3, () => hot("bus", C.ev, 3600));
+    // Narração 3: regra -> process_order
+    tag("regra: OrderReceived → process_order", 960, 410, "#a3125a", 12.2, 18.5);
+    at(13.4, () => packet("bus_process", C.ev, "OrderReceived"));
+    at(14.5, () => hot("process", C.ev, 3200));
+    tag("APPROVED / REJECTED", 1300, 135, "#2f9e6a", 15.6, 19.4);
+    at(16.6, () => packet("process_ddb", C.db));
+    at(17.6, () => hot("ddb", C.db));
+    // Narração 4: transações
+    at(19.8, () => packet("demo_bus", C.ev, "TransactionStatusChanged"));
+    at(20.9, () => packet("bus_tx", C.ev));
+    at(21.9, () => hot("tx", C.ev));
+    at(22.3, () => packet("tx_ddb", C.db, "PAID"));
+    // Narração 5: Scheduler -> relatório -> S3
+    at(23.2, () => hot("sched", C.sch, 3000));
+    tag("todo dia às 06:00", 960, 945, "#6a4fd6", 23.4, 28.2);
+    at(24.0, () => packet("sched_report", C.sch, "agendamento"));
+    at(25.1, () => hot("report", C.sch));
+    at(26.0, () => packet("report_s3", C.out, "2 arquivos CSV"));
+    at(27.1, () => hot("s3", C.out));
+    // Narração 6: notificações
+    at(28.6, () => packet("bus_notify", C.ev, "eventos de negócio"));
+    at(29.7, () => hot("notify", C.ev));
+    at(30.3, () => packet("notify_sns", C.sch));
+    at(31.3, () => hot("sns", C.sch, 3000));
+    // Narração 7: CloudWatch
+    at(33.1, () => hot("band", C.ev, 5500));
+  </script>
+</body></html>
