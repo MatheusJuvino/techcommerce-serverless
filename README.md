@@ -313,6 +313,6 @@ No modo local, os mesmos logs JSON aparecem no terminal do `run_local.py`.
 | Parte prática (50%) | este repositório + [entrega/evidencias/](entrega/evidencias/) (`pytest_resultado.txt`, `pytest_junit.xml`, `validacao_template.txt`, `demo_flows_local.txt`, capturas da interface local) |
 | Roteiro do vídeo pitch (25%) | [entrega/roteiro_video_pitch.md](entrega/roteiro_video_pitch.md) + [entrega/sugestoes_cenas_demonstracao.md](entrega/sugestoes_cenas_demonstracao.md) |
 
-Antes de entregar: preencha nome, RA, curso, professor e cidade em `docs/capa.json`, complemente
-as referências das Unidades 1 a 4 em `docs/relatorio_tecnico.md` e, após publicar o vídeo, informe
-`video_url` e execute `python scripts/build_report.py` novamente.
+Pendências antes da submissão: complementar as referências das Unidades 1 a 4 em
+`docs/relatorio_tecnico.md` e, após publicar o vídeo (YouTube, não listado), informar `video_url`
+em `docs/capa.json` e executar `python scripts/build_report.py` novamente.

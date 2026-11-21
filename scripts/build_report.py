@@ -218,13 +218,32 @@ def cover_story(cover: dict) -> list:
     return story
 
 
+def _longest_word_width(cell: str) -> float:
+    widest = 0.0
+    for idx, segment in enumerate(cell.split("`")):
+        font = MONO if idx % 2 else BODY
+        for word in re.sub(r"\*", "", segment).split():
+            widest = max(widest, pdfmetrics.stringWidth(word, font, 9.5))
+    return widest + 13
+
+
 def column_widths(rows: list[list[str]], total: float) -> list[float]:
-    weights = []
-    for col in range(len(rows[0])):
-        longest = max(len(re.sub(r"[`*]", "", r[col])) for r in rows if col < len(r))
-        weights.append(min(max(longest, 6), 55))
-    scale = total / sum(weights)
-    return [w * scale for w in weights]
+    cols = range(len(rows[0]))
+    weights = [min(max(max(len(re.sub(r"[`*]", "", r[c])) for r in rows if c < len(r)), 6), 55) for c in cols]
+    minimums = [min(max(_longest_word_width(r[c]) for r in rows if c < len(r)), total * 0.45) for c in cols]
+    widths = [w * total / sum(weights) for w in weights]
+    for _ in range(len(widths)):
+        short = [c for c in cols if widths[c] < minimums[c] - 0.01]
+        if not short:
+            break
+        for c in short:
+            widths[c] = minimums[c]
+        flexible = [c for c in cols if c not in short and widths[c] > minimums[c]]
+        excess = sum(widths) - total
+        pool = sum(widths[c] for c in flexible)
+        for c in flexible:
+            widths[c] -= excess * widths[c] / pool
+    return widths
 
 
 def build_table(rows: list[list[str]], width: float) -> Table:
