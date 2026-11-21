@@ -1,0 +1,62 @@
+flowchart LR
+    client["Cliente / Front-end"]
+    gateway["Gateway de pagamento<br/>(produtor externo)"]
+    teams["Equipes: logística, atendimento,<br/>financeiro, operações, gestão"]
+
+    subgraph AWS["AWS Cloud — sa-east-1"]
+        api["Amazon API Gateway<br/>(REST, throttling, CORS)"]
+
+        subgraph SYNC["Lambda síncronas (API)"]
+            create["λ create_order"]
+            read["λ read_api"]
+            demo["λ demo_events"]
+        end
+
+        bus{{"Amazon EventBridge<br/>barramento techcommerce-bus"}}
+        scheduler(["EventBridge Scheduler<br/>cron(0 6 * * ? *)"])
+
+        subgraph ASYNC["Lambda assíncronas (eventos)"]
+            process["λ process_order"]
+            tx["λ update_transaction"]
+            report["λ generate_sales_report"]
+            notify["λ notification_dispatcher"]
+        end
+
+        subgraph DATA["Dados"]
+            orders[("DynamoDB orders")]
+            idem[("DynamoDB idempotency")]
+            audit[("DynamoDB automation-log")]
+            s3[("S3 reports/*.csv")]
+        end
+
+        subgraph OPS["Operação e resiliência"]
+            sns["Amazon SNS"]
+            dlq[["SQS Dead Letter Queue"]]
+            cw["CloudWatch Logs,<br/>métricas e alarmes"]
+        end
+    end
+
+    client -->|HTTPS| api
+    api --> SYNC
+    create -->|grava pedido| orders
+    create -->|OrderReceived| bus
+    demo -->|eventos de teste| bus
+    gateway -.->|TransactionStatusChanged| bus
+    read -->|consultas| DATA
+
+    bus -->|OrderReceived| process
+    bus -->|TransactionStatusChanged| tx
+    bus -->|SalesReportRequested| report
+    scheduler -->|agendamento| report
+    bus -->|eventos operacionais| notify
+
+    process -->|status| orders
+    tx -->|transação| orders
+    report -->|CSV| s3
+    ASYNC -.->|eventos de resultado| bus
+    ASYNC -.->|idempotência| idem
+    SYNC & ASYNC -.->|histórico| audit
+    notify --> sns --> teams
+    ASYNC -.->|falha após retentativas| dlq
+    dlq -.-> cw
+    cw -.->|alarme| sns

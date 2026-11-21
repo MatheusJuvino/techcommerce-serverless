@@ -1,0 +1,79 @@
+Execução: 2026-11-20T21:51:44  |  alvo: http://127.0.0.1:16452/api
+Ambiente: local-simulation | região: sa-east-1 | barramento: techcommerce-local-bus
+ATENÇÃO: execução LOCAL SIMULADA (moto + simulador EventBridge/Scheduler), não é AWS real.
+
+------------------------------------------------------------------------------
+FLUXO 1 - Recebimento, validação e processamento automático de pedido
+------------------------------------------------------------------------------
+Pedido inválido -> HTTP 400: Pedido inválido. ['customer.name: obrigatório, entre 2 e 120 caracteres.', 'customer.email: e-mail inválido.', 'paymentMethod: deve ser um de CREDIT_CARD, PIX, BOLETO.', 'items: lista obrigatória com pelo menos um item.']
+Pedido válido -> HTTP 202: {'orderId': 'ORD-2C52633F0D45', 'status': 'RECEIVED', 'total': 4079.7, 'correlationId': '4f35da88-55d6-4bce-b220-2a14faf21412', 'message': 'Pedido recebido. O processamento seguirá automaticamente via Amazon EventBridge.'}
+Reenvio com a mesma Idempotency-Key -> HTTP 200, mesmo orderId: True
+{"_aws": {"Timestamp": 1795222304371, "CloudWatchMetrics": [{"Namespace": "TechCommerce", "Dimensions": [["Decision"]], "Metrics": [{"Name": "OrdersProcessed", "Unit": "Count"}]}]}, "OrdersProcessed": 1, "Decision": "APPROVED"}
+Status após processamento automático (EventBridge -> process_order): APPROVED
+   2026-11-21T00:51:44.315Z  RECEIVED   create_order         via API Gateway       
+   2026-11-21T00:51:44.361Z  APPROVED   process_order        via EventBridge Rule  [AUTOMÁTICO]
+{"_aws": {"Timestamp": 1795222305378, "CloudWatchMetrics": [{"Namespace": "TechCommerce", "Dimensions": [["Decision"]], "Metrics": [{"Name": "OrdersProcessed", "Unit": "Count"}]}]}, "OrdersProcessed": 1, "Decision": "REJECTED"}
+Pedido de alto valor ORD-FE140FED6ECD: REJECTED - ['Valor total R$ 25500.00 acima do limite de aprovação automática (R$ 10000.00).', 'Pagamento via boleto limitado a R$ 5000.00 por pedido.']
+
+------------------------------------------------------------------------------
+FLUXO 2 - Atualização automática de transações (TransactionStatusChanged)
+------------------------------------------------------------------------------
+Evento de pagamento publicado -> HTTP 202: Evento TransactionStatusChanged (CAPTURED) publicado para o pedido ORD-2C52633F0D45.
+{"_aws": {"Timestamp": 1795222305446, "CloudWatchMetrics": [{"Namespace": "TechCommerce", "Dimensions": [["TransactionStatus"]], "Metrics": [{"Name": "TransactionsUpdated", "Unit": "Count"}]}]}, "TransactionsUpdated": 1, "TransactionStatus": "CAPTURED"}
+Pedido ORD-2C52633F0D45: status=PAID paymentStatus=CAPTURED
+Transação para pedido inexistente publicada (deve gerar ProcessingFailed) -> HTTP 202
+
+------------------------------------------------------------------------------
+FLUXO 3 - Relatório de vendas (sob demanda via evento; agendado via Scheduler)
+------------------------------------------------------------------------------
+SalesReportRequested -> HTTP 202: Evento SalesReportRequested publicado (período last_24h).
+{"_aws": {"Timestamp": 1795222306518, "CloudWatchMetrics": [{"Namespace": "TechCommerce", "Dimensions": [["Trigger"]], "Metrics": [{"Name": "SalesReportsGenerated", "Unit": "Count"}]}]}, "SalesReportsGenerated": 1, "Trigger": "EventBridge Rule"}
+   reports/2026/11/21/sales-report-20261121T005146Z.csv (312 bytes)
+   reports/2026/11/21/sales-summary-20261121T005146Z.csv (368 bytes)
+   Conteúdo do resumo consolidado:
+      indicador,valor
+      periodo_inicio,2026-11-20T00:51:46.489595+00:00
+      periodo_fim,2026-11-21T00:51:46.489595+00:00
+      total_pedidos,2
+      pedidos_paid,1
+      pedidos_rejected,1
+      receita_bruta_aprovada,4079.70
+      receita_confirmada_paga,4079.70
+      ticket_medio,4079.70
+      taxa_aprovacao_percentual,50.0
+      receita_pix,4079.70
+      top1_produto,SKU-MOUSE-02 (2 un.)
+      top2_produto,SKU-NOTEBOOK-01 (1 un.)
+
+------------------------------------------------------------------------------
+FLUXO 4 - Notificações operacionais (SNS) e histórico de automações
+------------------------------------------------------------------------------
+   [SUCCESS] OrderApproved          -> Notificação para equipe 'logistics': [TechCommerce] Pedido aprovado ORD-2C52633F0D45
+   [SUCCESS] OrderRejected          -> Notificação para equipe 'support': [TechCommerce] Pedido rejeitado ORD-FE140FED6ECD
+   [SUCCESS] TransactionUpdated     -> Notificação para equipe 'finance': [TechCommerce] Transacao CAPTURED pedido ORD-2C52633F0D45
+   [SUCCESS] ProcessingFailed       -> Notificação para equipe 'operations': [TechCommerce] Falha no processamento (update_transaction)
+   [SUCCESS] SalesReportGenerated   -> Notificação para equipe 'management': [TechCommerce] Relatorio de vendas gerado
+
+Execuções ignoradas por idempotência: 1
+
+Histórico (mais recentes primeiro):
+   2026-11-21T00:51:46.529Z AUTO EventBridge Rule      notification_dispatcher  SUCCESS            SalesReportGenerated
+   2026-11-21T00:51:46.518Z AUTO EventBridge Rule      generate_sales_report    SUCCESS            SalesReportRequested
+   2026-11-21T00:51:46.476Z API  API Gateway           demo_events              SUCCESS            POST /reports
+   2026-11-21T00:51:46.472Z AUTO EventBridge Rule      notification_dispatcher  SUCCESS            ProcessingFailed
+   2026-11-21T00:51:46.462Z AUTO EventBridge Rule      update_transaction       FAILED             TransactionStatusChanged
+   2026-11-21T00:51:46.452Z API  API Gateway           demo_events              SUCCESS            POST /transactions
+   2026-11-21T00:51:46.447Z AUTO EventBridge Rule      update_transaction       DUPLICATE_IGNORED  TransactionStatusChanged
+   2026-11-21T00:51:46.440Z API  API Gateway           demo_events              SUCCESS            POST /transactions
+   2026-11-21T00:51:45.455Z AUTO EventBridge Rule      notification_dispatcher  SUCCESS            TransactionUpdated
+   2026-11-21T00:51:45.446Z AUTO EventBridge Rule      update_transaction       SUCCESS            TransactionStatusChanged
+   2026-11-21T00:51:45.412Z API  API Gateway           demo_events              SUCCESS            POST /transactions
+   2026-11-21T00:51:45.386Z AUTO EventBridge Rule      notification_dispatcher  SUCCESS            OrderRejected
+   2026-11-21T00:51:45.378Z AUTO EventBridge Rule      process_order            SUCCESS            OrderReceived
+   2026-11-21T00:51:45.360Z API  API Gateway           create_order             SUCCESS            POST /orders
+   2026-11-21T00:51:44.391Z AUTO EventBridge Rule      notification_dispatcher  SUCCESS            OrderApproved
+   2026-11-21T00:51:44.371Z AUTO EventBridge Rule      process_order            SUCCESS            OrderReceived
+   2026-11-21T00:51:44.328Z API  API Gateway           create_order             SUCCESS            POST /orders
+   2026-11-21T00:51:44.305Z API  API Gateway           create_order             VALIDATION_ERROR   POST /orders
+
+RESULTADO: TODOS OS FLUXOS OK

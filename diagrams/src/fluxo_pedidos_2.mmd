@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    actor C as Cliente
+    participant API as API Gateway
+    participant CO as λ create_order
+    participant DB as DynamoDB
+    participant EB as EventBridge
+    participant PO as λ process_order
+    participant ND as λ notification_dispatcher
+    participant SNS as Amazon SNS
+    actor LOG as Equipe de logística
+
+    C->>API: POST /orders (JSON)
+    API->>CO: evento proxy
+    CO->>CO: valida dados
+    CO->>DB: PutItem (status RECEIVED)
+    CO->>EB: PutEvents OrderReceived
+    CO-->>C: 202 Accepted {orderId}
+    Note over C,CO: O cliente não espera o processamento
+    EB->>PO: regra OrderReceived (assíncrono)
+    PO->>DB: chave de idempotência (PutItem condicional)
+    PO->>DB: UpdateItem status APPROVED (condição: RECEIVED)
+    PO->>EB: PutEvents OrderApproved
+    EB->>ND: regra eventos operacionais
+    ND->>SNS: Publish (team = logistics)
+    SNS-->>LOG: e-mail (assinatura com filter policy team = logistics)

@@ -1,0 +1,36 @@
+flowchart LR
+    client@{ icon: "logos:html-5", form: "square", label: "Front-end / Cliente", pos: "b", h: 48 }
+    api@{ icon: "logos:aws-api-gateway", form: "square", label: "API Gateway", pos: "b", h: 48 }
+    create@{ icon: "logos:aws-lambda", form: "square", label: "create_order", pos: "b", h: 48 }
+    read@{ icon: "logos:aws-lambda", form: "square", label: "read_api / demo_events", pos: "b", h: 48 }
+    bus@{ icon: "logos:aws-eventbridge", form: "square", label: "EventBridge (bus + regras)", pos: "b", h: 56 }
+    sched@{ icon: "logos:aws-eventbridge", form: "square", label: "EventBridge Scheduler", pos: "b", h: 48 }
+    process@{ icon: "logos:aws-lambda", form: "square", label: "process_order", pos: "b", h: 48 }
+    tx@{ icon: "logos:aws-lambda", form: "square", label: "update_transaction", pos: "b", h: 48 }
+    report@{ icon: "logos:aws-lambda", form: "square", label: "generate_sales_report", pos: "b", h: 48 }
+    notify@{ icon: "logos:aws-lambda", form: "square", label: "notification_dispatcher", pos: "b", h: 48 }
+    ddb@{ icon: "logos:aws-dynamodb", form: "square", label: "DynamoDB", pos: "b", h: 48 }
+    s3@{ icon: "logos:aws-s3", form: "square", label: "S3 (CSV)", pos: "b", h: 48 }
+    sns@{ icon: "logos:aws-sns", form: "square", label: "SNS → equipes", pos: "b", h: 48 }
+    sqs@{ icon: "logos:aws-sqs", form: "square", label: "SQS DLQ", pos: "b", h: 48 }
+    cw@{ icon: "logos:aws-cloudwatch", form: "square", label: "CloudWatch", pos: "b", h: 48 }
+
+    client --> api
+    api --> create
+    api --> read
+    create --> ddb
+    create -- OrderReceived --> bus
+    read -- eventos de teste --> bus
+    bus -- OrderReceived --> process
+    bus -- TransactionStatusChanged --> tx
+    bus -- SalesReportRequested --> report
+    sched -- cron --> report
+    bus -- eventos operacionais --> notify
+    process --> ddb
+    tx --> ddb
+    report --> ddb
+    report --> s3
+    notify --> sns
+    process -. falhas .-> sqs
+    sqs -. alarme .-> cw
+    cw -. ALARM .-> sns

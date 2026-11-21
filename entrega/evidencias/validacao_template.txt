@@ -1,0 +1,9 @@
+﻿Execução: 2026-11-20T22:11:48
+OBS: validações estáticas locais; nenhuma implantação AWS foi realizada.
+
+== cfn-lint infrastructure/template.yaml (exit 0) ==
+(sem apontamentos)
+
+== SAM CLI, version 1.174.0 : sam validate --lint (exit 0) ==
+C:\Users\Pichau\Desktop\trabalho ead cloud\techcommerce-serverless\infrastructure\template.yaml is a valid SAM Template
+

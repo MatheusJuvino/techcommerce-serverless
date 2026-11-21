@@ -1,0 +1,10 @@
+# Dependências de desenvolvimento, testes e demonstração local.
+# As funções Lambda usam somente a biblioteca padrão + boto3 (já incluído no runtime python3.12),
+# por isso src/requirements.txt fica praticamente vazio e o pacote de deploy é mínimo.
+boto3>=1.35
+moto[dynamodb,s3,sns,sqs,events]>=5.0
+PyYAML>=6.0
+pytest>=8.0
+cfn-lint>=1.0
+reportlab>=4.2
+pypdf>=5.0

@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TechCommerce · Serverless Ops Console</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">λ</div>
+      <div>
+        <h1>TechCommerce <span>Serverless Ops Console</span></h1>
+        <p>Automação de processos com AWS Lambda e Amazon EventBridge</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="envBadge" class="badge badge-muted">conectando…</span>
+      <button id="settingsBtn" class="btn btn-ghost" title="Configurar URL da API">⚙ API</button>
+    </div>
+  </header>
+
+  <div id="simBanner" class="banner hidden">
+    <strong>Modo de demonstração local (simulado).</strong>
+    DynamoDB, S3, SNS e SQS são emulados em memória (moto) e as regras/agendamentos do EventBridge são reproduzidos
+    a partir do <code>template.yaml</code>. Os resultados abaixo <u>não</u> são execuções na AWS.
+  </div>
+
+  <section class="pipeline" aria-label="Arquitetura">
+    <div class="node" data-svc="api">API Gateway</div><div class="arrow">→</div>
+    <div class="node lambda" data-svc="create_order">λ create_order</div><div class="arrow">→</div>
+    <div class="node bus" data-svc="bus">EventBridge</div><div class="arrow">→</div>
+    <div class="stack">
+      <div class="node lambda" data-svc="process_order">λ process_order</div>
+      <div class="node lambda" data-svc="update_transaction">λ update_transaction</div>
+      <div class="node lambda" data-svc="generate_sales_report">λ generate_sales_report</div>
+      <div class="node lambda" data-svc="notification_dispatcher">λ notification_dispatcher</div>
+    </div><div class="arrow">→</div>
+    <div class="stack">
+      <div class="node store">DynamoDB</div>
+      <div class="node store">S3 (CSV)</div>
+      <div class="node store">SNS</div>
+    </div>
+    <div class="scheduler-chip" data-svc="scheduler">⏰ EventBridge Scheduler</div>
+  </section>
+
+  <main class="grid">
+    <div class="col">
+      <section class="card">
+        <div class="card-head">
+          <h2><span class="step">1</span> Novo pedido</h2>
+          <div class="presets">
+            <button class="chip" data-preset="ok">✔ Aprovável</button>
+            <button class="chip" data-preset="reject">✖ Acima do limite</button>
+            <button class="chip" data-preset="fail" title="Requer ENABLE_FAULT_INJECTION=true">⚡ Falha temporária</button>
+          </div>
+        </div>
+        <form id="orderForm" class="form">
+          <div class="row">
+            <label>Cliente<input name="name" required value="Maria Souza"></label>
+            <label>E-mail<input name="email" type="email" required value="maria@exemplo.com.br"></label>
+          </div>
+          <label>Pagamento
+            <select name="paymentMethod">
+              <option value="PIX">PIX</option>
+              <option value="CREDIT_CARD">Cartão de crédito</option>
+              <option value="BOLETO">Boleto</option>
+            </select>
+          </label>
+          <div class="items-head"><span>SKU</span><span>Produto</span><span>Qtd</span><span>Preço (R$)</span><span></span></div>
+          <div id="items"></div>
+          <div class="form-actions">
+            <button type="button" id="addItem" class="btn btn-ghost">+ item</button>
+            <span id="orderTotal" class="total">Total: R$ 0,00</span>
+            <button type="submit" class="btn btn-primary">Enviar pedido (POST /orders)</button>
+          </div>
+        </form>
+        <pre id="orderResult" class="result hidden"></pre>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2><span class="step">2</span> Evento de transação</h2></div>
+        <p class="hint">Simula o gateway de pagamento publicando <code>TransactionStatusChanged</code> no EventBridge.
+          A atualização do pedido é feita automaticamente pela Lambda <code>update_transaction</code>.</p>
+        <form id="txForm" class="form">
+          <div class="row">
+            <label>Pedido<select name="orderId" id="txOrder"></select></label>
+            <label>Status
+              <select name="status">
+                <option value="CAPTURED">CAPTURED (pago)</option>
+                <option value="AUTHORIZED">AUTHORIZED</option>
+                <option value="DECLINED">DECLINED (recusado)</option>
+                <option value="REFUNDED">REFUNDED (estorno)</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="button" id="txUnknown" class="btn btn-ghost" title="Gera ProcessingFailed">Pedido inexistente</button>
+            <button type="submit" class="btn btn-primary">Publicar evento</button>
+          </div>
+        </form>
+        <pre id="txResult" class="result hidden"></pre>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2><span class="step">3</span> Relatórios de vendas</h2></div>
+        <div id="schedulerInfo" class="scheduler"></div>
+        <div class="form-actions">
+          <select id="reportPeriod">
+            <option value="last_24h">Últimas 24h</option>
+            <option value="today">Hoje (UTC)</option>
+            <option value="last_7d">Últimos 7 dias</option>
+          </select>
+          <button id="requestReport" class="btn btn-primary">Solicitar relatório (evento)</button>
+          <button id="runSchedule" class="btn btn-ghost hidden" title="Executa agora o alvo do agendamento (simulação)">⏰ Disparar agendamento</button>
+        </div>
+        <ul id="reports" class="reports"></ul>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="card">
+        <div class="card-head">
+          <h2>Pedidos</h2>
+          <span class="muted small">atualização automática a cada 2,5 s</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Pedido</th><th>Cliente</th><th>Total</th><th>Status</th><th>Pagamento</th><th>Criado</th></tr></thead>
+            <tbody id="ordersBody"><tr><td colspan="6" class="muted">Nenhum pedido ainda.</td></tr></tbody>
+          </table>
+        </div>
+        <div id="orderDetail" class="detail hidden"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Histórico das automações</h2>
+          <div class="legend"><span class="tag tag-auto">AUTOMÁTICO</span><span class="tag tag-api">REQUISIÇÃO</span></div>
+        </div>
+        <ul id="automations" class="timeline"></ul>
+      </section>
+
+      <section id="localPanels" class="card hidden">
+        <div class="card-head"><h2>Barramento de eventos <span class="muted small">(simulação local)</span></h2></div>
+        <ul id="events" class="events"></ul>
+        <h3>Dead Letter Queue <span id="dlqCount" class="badge badge-muted">0</span></h3>
+        <ul id="dlq" class="events"></ul>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" class="form">
+      <h2>URL da API</h2>
+      <p class="hint">Use <code>/api</code> no modo local ou a saída <code>ApiUrl</code> do stack na AWS.</p>
+      <input id="apiUrlInput" placeholder="https://xxxx.execute-api.sa-east-1.amazonaws.com/dev">
+      <div class="form-actions">
+        <button value="cancel" class="btn btn-ghost">Cancelar</button>
+        <button id="saveApiUrl" value="ok" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

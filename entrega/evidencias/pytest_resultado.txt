@@ -1,0 +1,90 @@
+﻿Execução: 2026-11-20T22:11:10
+Comando: python -m pytest -v
+Ambiente: Windows, Python Python 3.12.13
+OBS: testes executados localmente com moto (mocks AWS); testes marcados 'aws' são ignorados sem TECHCOMMERCE_API_URL.
+
+============================= test session starts =============================
+platform win32 -- Python 3.12.13, pytest-9.2.0, pluggy-1.7.0 -- C:\Users\Pichau\Desktop\trabalho ead cloud\techcommerce-serverless\.venv\Scripts\python.exe
+rootdir: C:\Users\Pichau\Desktop\trabalho ead cloud\techcommerce-serverless
+configfile: pytest.ini
+testpaths: tests
+collecting ... collected 70 items
+
+tests/handlers/test_order_flow.py::test_create_order_persists_and_publishes_order_received PASSED [  1%]
+tests/handlers/test_order_flow.py::test_create_order_rejects_invalid_payload_without_publishing PASSED [  2%]
+tests/handlers/test_order_flow.py::test_create_order_rejects_malformed_json PASSED [  4%]
+tests/handlers/test_order_flow.py::test_create_order_idempotency_key_returns_same_order PASSED [  5%]
+tests/handlers/test_order_flow.py::test_create_order_marks_failed_when_eventbridge_unavailable PASSED [  7%]
+tests/handlers/test_order_flow.py::test_process_order_approves_and_publishes PASSED [  8%]
+tests/handlers/test_order_flow.py::test_process_order_rejects_above_limit PASSED [ 10%]
+tests/handlers/test_order_flow.py::test_process_order_is_idempotent_for_duplicate_delivery PASSED [ 11%]
+tests/handlers/test_order_flow.py::test_process_order_unknown_order_publishes_processing_failed PASSED [ 12%]
+tests/handlers/test_order_flow.py::test_process_order_transient_failure_raises_for_retry_and_releases_lock PASSED [ 14%]
+tests/handlers/test_order_flow.py::test_event_with_invalid_shape_is_rejected PASSED [ 15%]
+tests/handlers/test_report_and_notification_flow.py::test_scheduled_report_saves_csv_to_s3 PASSED [ 17%]
+tests/handlers/test_report_and_notification_flow.py::test_schedule_redelivery_is_idempotent PASSED [ 18%]
+tests/handlers/test_report_and_notification_flow.py::test_on_demand_report_via_event PASSED [ 20%]
+tests/handlers/test_report_and_notification_flow.py::test_invalid_report_period PASSED [ 21%]
+tests/handlers/test_report_and_notification_flow.py::test_notification_is_published_to_sns_with_team_attribute PASSED [ 22%]
+tests/handlers/test_report_and_notification_flow.py::test_read_api_endpoints PASSED [ 24%]
+tests/handlers/test_transaction_flow.py::test_captured_transaction_marks_order_paid PASSED [ 25%]
+tests/handlers/test_transaction_flow.py::test_refund_after_capture PASSED [ 27%]
+tests/handlers/test_transaction_flow.py::test_same_transaction_with_new_event_id_is_applied_once PASSED [ 28%]
+tests/handlers/test_transaction_flow.py::test_invalid_transition_publishes_processing_failed PASSED [ 30%]
+tests/handlers/test_transaction_flow.py::test_validation_and_unknown_order_failures PASSED [ 31%]
+tests/handlers/test_transaction_flow.py::test_demo_endpoint_publishes_transaction_event_with_order_total PASSED [ 32%]
+tests/infrastructure/test_template.py::test_required_services_are_declared PASSED [ 34%]
+tests/infrastructure/test_template.py::test_functions_use_python312_and_have_handlers PASSED [ 35%]
+tests/infrastructure/test_template.py::test_event_rules_wire_events_to_functions PASSED [ 37%]
+tests/infrastructure/test_template.py::test_report_schedule_is_configurable PASSED [ 38%]
+tests/infrastructure/test_template.py::test_async_functions_have_retries_and_dlq PASSED [ 40%]
+tests/infrastructure/test_template.py::test_iam_least_privilege_no_wildcards PASSED [ 41%]
+tests/infrastructure/test_template.py::test_read_api_is_read_only PASSED [ 42%]
+tests/infrastructure/test_template.py::test_storage_security PASSED      [ 44%]
+tests/infrastructure/test_template.py::test_no_hardcoded_credentials_in_source PASSED [ 45%]
+tests/infrastructure/test_template.py::test_cfn_lint_passes PASSED       [ 47%]
+tests/integration/test_aws_deployed.py::test_health_reports_aws_mode SKIPPED [ 48%]
+tests/integration/test_aws_deployed.py::test_order_flow_on_aws SKIPPED   [ 50%]
+tests/integration/test_aws_deployed.py::test_on_demand_report_on_aws SKIPPED [ 51%]
+tests/integration/test_local_end_to_end.py::test_order_is_processed_automatically_end_to_end PASSED [ 52%]
+tests/integration/test_local_end_to_end.py::test_transient_failure_is_retried_and_sent_to_dlq PASSED [ 54%]
+tests/integration/test_local_end_to_end.py::test_scheduler_triggers_report_generation PASSED [ 55%]
+tests/unit/test_business_rules.py::test_order_within_limits_is_approved PASSED [ 57%]
+tests/unit/test_business_rules.py::test_order_above_value_limit_is_rejected PASSED [ 58%]
+tests/unit/test_business_rules.py::test_item_quantity_limit_and_boleto_rule PASSED [ 60%]
+tests/unit/test_business_rules.py::test_fault_injection_only_when_enabled PASSED [ 61%]
+tests/unit/test_business_rules.py::test_transaction_validation PASSED    [ 62%]
+tests/unit/test_business_rules.py::test_allowed_transitions[APPROVED-CAPTURED-PAID] PASSED [ 64%]
+tests/unit/test_business_rules.py::test_allowed_transitions[APPROVED-DECLINED-PAYMENT_DECLINED] PASSED [ 65%]
+tests/unit/test_business_rules.py::test_allowed_transitions[PAID-REFUNDED-REFUNDED] PASSED [ 67%]
+tests/unit/test_business_rules.py::test_allowed_transitions[APPROVED-AUTHORIZED-None] PASSED [ 68%]
+tests/unit/test_business_rules.py::test_forbidden_transition_and_amount_mismatch PASSED [ 70%]
+tests/unit/test_event_patterns.py::test_exact_and_nested_matching PASSED [ 71%]
+tests/unit/test_event_patterns.py::test_content_filters PASSED           [ 72%]
+tests/unit/test_order_validation.py::test_valid_order_is_normalized_and_total_calculated PASSED [ 74%]
+tests/unit/test_order_validation.py::test_invalid_order_reports_all_errors PASSED [ 75%]
+tests/unit/test_order_validation.py::test_item_validation[item0-sku] PASSED [ 77%]
+tests/unit/test_order_validation.py::test_item_validation[item1-quantity] PASSED [ 78%]
+tests/unit/test_order_validation.py::test_item_validation[item2-quantity] PASSED [ 80%]
+tests/unit/test_order_validation.py::test_item_validation[item3-quantity] PASSED [ 81%]
+tests/unit/test_order_validation.py::test_item_validation[item4-unitPrice] PASSED [ 82%]
+tests/unit/test_order_validation.py::test_item_validation[item5-unitPrice] PASSED [ 84%]
+tests/unit/test_order_validation.py::test_new_order_starts_received_with_history PASSED [ 85%]
+tests/unit/test_reports_and_notifications.py::test_resolve_period PASSED [ 87%]
+tests/unit/test_reports_and_notifications.py::test_consolidation_counts_only_approved_and_paid_as_revenue PASSED [ 88%]
+tests/unit/test_reports_and_notifications.py::test_empty_report_is_valid PASSED [ 90%]
+tests/unit/test_reports_and_notifications.py::test_csv_outputs PASSED    [ 91%]
+tests/unit/test_reports_and_notifications.py::test_every_notifiable_event_has_a_team[OrderApproved-logistics] PASSED [ 92%]
+tests/unit/test_reports_and_notifications.py::test_every_notifiable_event_has_a_team[OrderRejected-support] PASSED [ 94%]
+tests/unit/test_reports_and_notifications.py::test_every_notifiable_event_has_a_team[TransactionUpdated-finance] PASSED [ 95%]
+tests/unit/test_reports_and_notifications.py::test_every_notifiable_event_has_a_team[ProcessingFailed-operations] PASSED [ 97%]
+tests/unit/test_reports_and_notifications.py::test_every_notifiable_event_has_a_team[SalesReportGenerated-management] PASSED [ 98%]
+tests/unit/test_reports_and_notifications.py::test_sns_subject_is_ascii PASSED [100%]
+
+- generated xml file: C:\Users\Pichau\Desktop\trabalho ead cloud\techcommerce-serverless\entrega\evidencias\pytest_junit.xml -
+=========================== short test summary info ===========================
+SKIPPED [1] tests\integration\test_aws_deployed.py:38: TECHCOMMERCE_API_URL n├úo definida (stack AWS n├úo implantado)
+SKIPPED [1] tests\integration\test_aws_deployed.py:43: TECHCOMMERCE_API_URL n├úo definida (stack AWS n├úo implantado)
+SKIPPED [1] tests\integration\test_aws_deployed.py:51: TECHCOMMERCE_API_URL n├úo definida (stack AWS n├úo implantado)
+======================= 67 passed, 3 skipped in 20.85s ========================
+

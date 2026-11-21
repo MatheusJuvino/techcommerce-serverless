@@ -1,0 +1,735 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  TechCommerce Serverless - Automacao de processos em nuvem com AWS Lambda e Amazon EventBridge
+  (projeto academico - Cloud Computing for Software Development - UniFECAF).
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod]
+    Description: Nome do ambiente (prefixo dos recursos).
+  ReportScheduleExpression:
+    Type: String
+    Default: cron(0 6 * * ? *)
+    Description: >-
+      Expressao do EventBridge Scheduler para o relatorio de vendas. Exemplos:
+      cron(0 6 * * ? *) = diariamente 06:00; rate(1 hour) = a cada hora; rate(5 minutes) = demonstracao.
+  ReportScheduleTimezone:
+    Type: String
+    Default: America/Sao_Paulo
+    Description: Fuso horario aplicado a expressao cron.
+  ReportScheduleState:
+    Type: String
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+  MaxOrderValue:
+    Type: String
+    Default: "10000"
+    Description: Valor maximo (BRL) para aprovacao automatica de pedidos.
+  NotificationEmail:
+    Type: String
+    Default: ""
+    Description: (Opcional) e-mail que recebe TODAS as notificacoes operacionais.
+  LogisticsEmail:
+    Type: String
+    Default: ""
+    Description: (Opcional) e-mail da logistica; recebe apenas mensagens com team = logistics (filter policy).
+  EnableDemoEndpoints:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Cria os endpoints POST /transactions e POST /reports usados na demonstracao.
+  EnableFaultInjection:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Habilita o SKU-FALHA-TEMPORARIA para demonstrar retentativas e DLQ.
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: Origem permitida no CORS da API (restrinja ao dominio do front-end em producao).
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 180, 365]
+
+Conditions:
+  HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, ""]]
+  HasLogisticsEmail: !Not [!Equals [!Ref LogisticsEmail, ""]]
+  DemoEndpointsEnabled: !Equals [!Ref EnableDemoEndpoints, "true"]
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 15
+    CodeUri: ../src
+    Environment:
+      Variables:
+        APP_ENV: !Ref Environment
+        LOG_LEVEL: INFO
+        ORDERS_TABLE: !Ref OrdersTable
+        IDEMPOTENCY_TABLE: !Ref IdempotencyTable
+        AUTOMATION_LOG_TABLE: !Ref AutomationLogTable
+        EVENT_BUS_NAME: !Ref TechCommerceEventBus
+        NOTIFICATIONS_TOPIC_ARN: !Ref NotificationsTopic
+        REPORTS_BUCKET: !Ref ReportsBucket
+        MAX_ORDER_VALUE: !Ref MaxOrderValue
+        MAX_ITEM_QUANTITY: "50"
+        ENABLE_FAULT_INJECTION: !Ref EnableFaultInjection
+        ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # Barramento de eventos (Amazon EventBridge)
+  # ---------------------------------------------------------------------------
+  TechCommerceEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub techcommerce-${Environment}-bus
+
+  TechCommerceEventArchive:
+    Type: AWS::Events::Archive
+    Properties:
+      ArchiveName: !Sub techcommerce-${Environment}-archive
+      Description: Arquivo de eventos para auditoria e replay apos incidentes.
+      SourceArn: !GetAtt TechCommerceEventBus.Arn
+      RetentionDays: 7
+
+  # ---------------------------------------------------------------------------
+  # Tratamento de falhas: Dead Letter Queue compartilhada (Amazon SQS)
+  # Recebe: eventos que o EventBridge/Scheduler nao conseguiu entregar e invocacoes
+  # assincronas do Lambda que falharam apos todas as retentativas.
+  # ---------------------------------------------------------------------------
+  EventsDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub techcommerce-${Environment}-events-dlq
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  EventsDeadLetterQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref EventsDeadLetterQueue]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowEventBridgeRulesToSendFailedEvents
+            Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sqs:SendMessage
+            Resource: !GetAtt EventsDeadLetterQueue.Arn
+            Condition:
+              StringEquals: { aws:SourceAccount: !Ref AWS::AccountId }
+
+  # ---------------------------------------------------------------------------
+  # Persistencia (Amazon DynamoDB, sob demanda)
+  # ---------------------------------------------------------------------------
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub techcommerce-${Environment}-orders
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: orderId, AttributeType: S }
+        - { AttributeName: createdDay, AttributeType: S }
+        - { AttributeName: createdAt, AttributeType: S }
+      KeySchema:
+        - { AttributeName: orderId, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: ByCreatedDay
+          KeySchema:
+            - { AttributeName: createdDay, KeyType: HASH }
+            - { AttributeName: createdAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+      PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  IdempotencyTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub techcommerce-${Environment}-idempotency
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+      TimeToLiveSpecification: { AttributeName: expireAt, Enabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  AutomationLogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub techcommerce-${Environment}-automation-log
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      TimeToLiveSpecification: { AttributeName: expireAt, Enabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  # ---------------------------------------------------------------------------
+  # Relatorios (Amazon S3) - privado, criptografado, somente HTTPS, com ciclo de vida
+  # ---------------------------------------------------------------------------
+  ReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: ArchiveAndExpireReports
+            Status: Enabled
+            Prefix: reports/
+            Transitions:
+              - { StorageClass: STANDARD_IA, TransitionInDays: 30 }
+            ExpirationInDays: 365
+
+  ReportsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ReportsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt ReportsBucket.Arn
+              - !Sub ${ReportsBucket.Arn}/*
+            Condition:
+              Bool: { aws:SecureTransport: "false" }
+
+  # ---------------------------------------------------------------------------
+  # Notificacoes (Amazon SNS)
+  # ---------------------------------------------------------------------------
+  NotificationsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub techcommerce-${Environment}-operational-notifications
+      DisplayName: TechCommerce Ops
+
+  NotificationEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasNotificationEmail
+    Properties:
+      TopicArn: !Ref NotificationsTopic
+      Protocol: email
+      Endpoint: !Ref NotificationEmail
+
+  LogisticsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasLogisticsEmail
+    Properties:
+      TopicArn: !Ref NotificationsTopic
+      Protocol: email
+      Endpoint: !Ref LogisticsEmail
+      FilterPolicyScope: MessageAttributes
+      FilterPolicy:
+        team: [logistics]
+
+  # ---------------------------------------------------------------------------
+  # API REST (Amazon API Gateway)
+  # ---------------------------------------------------------------------------
+  TechCommerceApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub techcommerce-${Environment}-api
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,Idempotency-Key,X-Correlation-Id'"
+        AllowOrigin: !Sub "'${AllowedOrigin}'"
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingBurstLimit: 200
+          ThrottlingRateLimit: 100
+          MetricsEnabled: true
+
+  # ---------------------------------------------------------------------------
+  # Grupos de logs (Amazon CloudWatch Logs) com retencao definida
+  # ---------------------------------------------------------------------------
+  CreateOrderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/techcommerce-${Environment}-create-order
+      RetentionInDays: !Ref LogRetentionDays
+  ProcessOrderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/techcommerce-${Environment}-process-order
+      RetentionInDays: !Ref LogRetentionDays
+  UpdateTransactionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/techcommerce-${Environment}-update-transaction
+      RetentionInDays: !Ref LogRetentionDays
+  GenerateSalesReportLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/techcommerce-${Environment}-generate-sales-report
+      RetentionInDays: !Ref LogRetentionDays
+  NotificationDispatcherLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/techcommerce-${Environment}-notification-dispatcher
+      RetentionInDays: !Ref LogRetentionDays
+  ReadApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/techcommerce-${Environment}-read-api
+      RetentionInDays: !Ref LogRetentionDays
+  DemoEventsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: DemoEndpointsEnabled
+    Properties:
+      LogGroupName: !Sub /aws/lambda/techcommerce-${Environment}-demo-events
+      RetentionInDays: !Ref LogRetentionDays
+
+  # ---------------------------------------------------------------------------
+  # Funcoes AWS Lambda
+  # ---------------------------------------------------------------------------
+  # Fluxo 1 (entrada): API Gateway -> CreateOrder -> DynamoDB + EventBridge (OrderReceived)
+  CreateOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub techcommerce-${Environment}-create-order
+      Description: Recebe e valida pedidos (POST /orders) e publica OrderReceived.
+      Handler: handlers.create_order.lambda_handler
+      LoggingConfig:
+        LogGroup: !Ref CreateOrderLogGroup
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:PutItem, dynamodb:UpdateItem]
+              Resource: !GetAtt OrdersTable.Arn
+            - Effect: Allow
+              Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:UpdateItem, dynamodb:DeleteItem]
+              Resource: !GetAtt IdempotencyTable.Arn
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt AutomationLogTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !GetAtt TechCommerceEventBus.Arn
+      Events:
+        CreateOrder:
+          Type: Api
+          Properties:
+            RestApiId: !Ref TechCommerceApi
+            Path: /orders
+            Method: POST
+
+  # Fluxo 1 (processamento): EventBridge (OrderReceived) -> ProcessOrder -> DynamoDB + OrderApproved/Rejected
+  ProcessOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub techcommerce-${Environment}-process-order
+      Description: Aplica regras de negocio e atualiza o status do pedido.
+      Handler: handlers.process_order.lambda_handler
+      LoggingConfig:
+        LogGroup: !Ref ProcessOrderLogGroup
+      EventInvokeConfig:
+        MaximumRetryAttempts: 2
+        MaximumEventAgeInSeconds: 3600
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt EventsDeadLetterQueue.Arn
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:UpdateItem]
+              Resource: !GetAtt OrdersTable.Arn
+            - Effect: Allow
+              Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:UpdateItem, dynamodb:DeleteItem]
+              Resource: !GetAtt IdempotencyTable.Arn
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt AutomationLogTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !GetAtt TechCommerceEventBus.Arn
+            - Effect: Allow
+              Action: sqs:SendMessage
+              Resource: !GetAtt EventsDeadLetterQueue.Arn
+      Events:
+        OrderReceivedRule:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref TechCommerceEventBus
+            RuleName: !Sub techcommerce-${Environment}-order-received
+            Pattern:
+              source: [techcommerce.orders]
+              detail-type: [OrderReceived]
+            RetryPolicy:
+              MaximumRetryAttempts: 5
+              MaximumEventAgeInSeconds: 3600
+            DeadLetterConfig:
+              Arn: !GetAtt EventsDeadLetterQueue.Arn
+
+  # Fluxo 2: EventBridge (TransactionStatusChanged) -> UpdateTransaction -> DynamoDB + TransactionUpdated
+  UpdateTransactionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub techcommerce-${Environment}-update-transaction
+      Description: Atualiza automaticamente o status das transacoes de pagamento.
+      Handler: handlers.update_transaction.lambda_handler
+      LoggingConfig:
+        LogGroup: !Ref UpdateTransactionLogGroup
+      EventInvokeConfig:
+        MaximumRetryAttempts: 2
+        MaximumEventAgeInSeconds: 3600
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt EventsDeadLetterQueue.Arn
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:UpdateItem]
+              Resource: !GetAtt OrdersTable.Arn
+            - Effect: Allow
+              Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:UpdateItem, dynamodb:DeleteItem]
+              Resource: !GetAtt IdempotencyTable.Arn
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt AutomationLogTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !GetAtt TechCommerceEventBus.Arn
+            - Effect: Allow
+              Action: sqs:SendMessage
+              Resource: !GetAtt EventsDeadLetterQueue.Arn
+      Events:
+        TransactionStatusChangedRule:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref TechCommerceEventBus
+            RuleName: !Sub techcommerce-${Environment}-transaction-status-changed
+            Pattern:
+              source: [techcommerce.payments]
+              detail-type: [TransactionStatusChanged]
+            RetryPolicy:
+              MaximumRetryAttempts: 5
+              MaximumEventAgeInSeconds: 3600
+            DeadLetterConfig:
+              Arn: !GetAtt EventsDeadLetterQueue.Arn
+
+  # Fluxo 3: EventBridge Scheduler (cron) ou SalesReportRequested -> GenerateSalesReport -> S3 + SalesReportGenerated
+  GenerateSalesReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub techcommerce-${Environment}-generate-sales-report
+      Description: Consolida as vendas, gera CSV e salva no S3 (agendado e sob demanda).
+      Handler: handlers.generate_sales_report.lambda_handler
+      Timeout: 60
+      MemorySize: 512
+      LoggingConfig:
+        LogGroup: !Ref GenerateSalesReportLogGroup
+      EventInvokeConfig:
+        MaximumRetryAttempts: 2
+        MaximumEventAgeInSeconds: 3600
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt EventsDeadLetterQueue.Arn
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${OrdersTable.Arn}/index/ByCreatedDay
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource: !Sub ${ReportsBucket.Arn}/reports/*
+            - Effect: Allow
+              Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:UpdateItem, dynamodb:DeleteItem]
+              Resource: !GetAtt IdempotencyTable.Arn
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt AutomationLogTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !GetAtt TechCommerceEventBus.Arn
+            - Effect: Allow
+              Action: sqs:SendMessage
+              Resource: !GetAtt EventsDeadLetterQueue.Arn
+      Events:
+        DailySalesReportSchedule:
+          Type: ScheduleV2
+          Properties:
+            Name: !Sub techcommerce-${Environment}-sales-report
+            Description: Gera automaticamente o relatorio consolidado de vendas.
+            ScheduleExpression: !Ref ReportScheduleExpression
+            ScheduleExpressionTimezone: !Ref ReportScheduleTimezone
+            State: !Ref ReportScheduleState
+            Input: '{"trigger": "schedule", "period": "last_24h", "scheduledTime": "<aws.scheduler.scheduled-time>", "executionId": "<aws.scheduler.execution-id>"}'
+            RetryPolicy:
+              MaximumRetryAttempts: 3
+              MaximumEventAgeInSeconds: 3600
+            DeadLetterConfig:
+              Arn: !GetAtt EventsDeadLetterQueue.Arn
+        SalesReportRequestedRule:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref TechCommerceEventBus
+            RuleName: !Sub techcommerce-${Environment}-sales-report-requested
+            Pattern:
+              source: [techcommerce.reports]
+              detail-type: [SalesReportRequested]
+            RetryPolicy:
+              MaximumRetryAttempts: 3
+              MaximumEventAgeInSeconds: 3600
+            DeadLetterConfig:
+              Arn: !GetAtt EventsDeadLetterQueue.Arn
+
+  # Fluxo 4: EventBridge (eventos relevantes) -> NotificationDispatcher -> SNS
+  NotificationDispatcherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub techcommerce-${Environment}-notification-dispatcher
+      Description: Publica notificacoes operacionais no SNS.
+      Handler: handlers.notification_dispatcher.lambda_handler
+      LoggingConfig:
+        LogGroup: !Ref NotificationDispatcherLogGroup
+      EventInvokeConfig:
+        MaximumRetryAttempts: 2
+        MaximumEventAgeInSeconds: 3600
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt EventsDeadLetterQueue.Arn
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: sns:Publish
+              Resource: !Ref NotificationsTopic
+            - Effect: Allow
+              Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:UpdateItem, dynamodb:DeleteItem]
+              Resource: !GetAtt IdempotencyTable.Arn
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt AutomationLogTable.Arn
+            - Effect: Allow
+              Action: sqs:SendMessage
+              Resource: !GetAtt EventsDeadLetterQueue.Arn
+      Events:
+        OperationalEventsRule:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref TechCommerceEventBus
+            RuleName: !Sub techcommerce-${Environment}-operational-notifications
+            Pattern:
+              source: [techcommerce.orders, techcommerce.payments, techcommerce.reports, techcommerce.operations]
+              detail-type:
+                - OrderApproved
+                - OrderRejected
+                - TransactionUpdated
+                - ProcessingFailed
+                - SalesReportGenerated
+            RetryPolicy:
+              MaximumRetryAttempts: 5
+              MaximumEventAgeInSeconds: 3600
+            DeadLetterConfig:
+              Arn: !GetAtt EventsDeadLetterQueue.Arn
+
+  # Leitura para a interface de demonstracao (somente leitura no IAM)
+  ReadApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub techcommerce-${Environment}-read-api
+      Description: Consultas de pedidos, relatorios e historico de automacoes.
+      Handler: handlers.read_api.lambda_handler
+      LoggingConfig:
+        LogGroup: !Ref ReadApiLogGroup
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:Query]
+              Resource:
+                - !GetAtt OrdersTable.Arn
+                - !Sub ${OrdersTable.Arn}/index/ByCreatedDay
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !GetAtt AutomationLogTable.Arn
+            - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !GetAtt ReportsBucket.Arn
+              Condition:
+                StringLike: { s3:prefix: ["reports/*"] }
+            - Effect: Allow
+              Action: s3:GetObject
+              Resource: !Sub ${ReportsBucket.Arn}/reports/*
+      Events:
+        Health:
+          Type: Api
+          Properties: { RestApiId: !Ref TechCommerceApi, Path: /health, Method: GET }
+        ListOrders:
+          Type: Api
+          Properties: { RestApiId: !Ref TechCommerceApi, Path: /orders, Method: GET }
+        GetOrder:
+          Type: Api
+          Properties: { RestApiId: !Ref TechCommerceApi, Path: "/orders/{orderId}", Method: GET }
+        ListReports:
+          Type: Api
+          Properties: { RestApiId: !Ref TechCommerceApi, Path: /reports, Method: GET }
+        DownloadReport:
+          Type: Api
+          Properties: { RestApiId: !Ref TechCommerceApi, Path: /reports/download, Method: GET }
+        ListAutomations:
+          Type: Api
+          Properties: { RestApiId: !Ref TechCommerceApi, Path: /automations, Method: GET }
+
+  # Produtor de eventos de demonstracao (simula gateway de pagamento e pedido de relatorio)
+  DemoEventsFunction:
+    Type: AWS::Serverless::Function
+    Condition: DemoEndpointsEnabled
+    Properties:
+      FunctionName: !Sub techcommerce-${Environment}-demo-events
+      Description: Publica TransactionStatusChanged e SalesReportRequested para demonstracao.
+      Handler: handlers.demo_events.lambda_handler
+      LoggingConfig:
+        LogGroup: !Ref DemoEventsLogGroup
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt OrdersTable.Arn
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt AutomationLogTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !GetAtt TechCommerceEventBus.Arn
+      Events:
+        PublishTransaction:
+          Type: Api
+          Properties: { RestApiId: !Ref TechCommerceApi, Path: /transactions, Method: POST }
+        RequestReport:
+          Type: Api
+          Properties: { RestApiId: !Ref TechCommerceApi, Path: /reports, Method: POST }
+
+  # ---------------------------------------------------------------------------
+  # Monitoramento (Amazon CloudWatch Alarms -> SNS)
+  # ---------------------------------------------------------------------------
+  DeadLetterQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub techcommerce-${Environment}-dlq-has-messages
+      AlarmDescription: Ha eventos que falharam apos todas as retentativas (verificar a DLQ).
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt EventsDeadLetterQueue.QueueName }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref NotificationsTopic]
+
+  ProcessOrderErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub techcommerce-${Environment}-process-order-errors
+      AlarmDescription: Erros na funcao de processamento de pedidos.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref ProcessOrderFunction }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref NotificationsTopic]
+
+  UpdateTransactionErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub techcommerce-${Environment}-update-transaction-errors
+      AlarmDescription: Erros na funcao de atualizacao de transacoes.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref UpdateTransactionFunction }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref NotificationsTopic]
+
+  SalesReportErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub techcommerce-${Environment}-sales-report-errors
+      AlarmDescription: Erros na geracao do relatorio de vendas.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref GenerateSalesReportFunction }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref NotificationsTopic]
+
+  Api5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub techcommerce-${Environment}-api-5xx
+      AlarmDescription: Erros 5XX na API de pedidos.
+      Namespace: AWS/ApiGateway
+      MetricName: 5XXError
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub techcommerce-${Environment}-api
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref NotificationsTopic]
+
+Outputs:
+  ApiUrl:
+    Description: URL base da API (use no front-end e nos scripts).
+    Value: !Sub https://${TechCommerceApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+  EventBusName:
+    Value: !Ref TechCommerceEventBus
+  OrdersTableName:
+    Value: !Ref OrdersTable
+  ReportsBucketName:
+    Value: !Ref ReportsBucket
+  NotificationsTopicArn:
+    Value: !Ref NotificationsTopic
+  DeadLetterQueueUrl:
+    Value: !Ref EventsDeadLetterQueue
+  SalesReportScheduleName:
+    Value: !Sub techcommerce-${Environment}-sales-report

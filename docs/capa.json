@@ -1,0 +1,14 @@
+{
+  "instituicao": "CENTRO UNIVERSITÁRIO UNIFECAF",
+  "curso": "Engenharia da Computação",
+  "disciplina": "Cloud Computing for Software Development",
+  "autores": ["MATHEUS JUVINO DA SILVA — RA 147779"],
+  "titulo": "AUTOMAÇÃO DE PROCESSOS EM NUVEM COM AWS LAMBDA E AMAZON EVENTBRIDGE",
+  "subtitulo": "Arquitetura serverless orientada a eventos para a TechCommerce",
+  "natureza": "Relatório técnico apresentado à disciplina Cloud Computing for Software Development do curso de Engenharia da Computação do Centro Universitário UniFECAF, como parte da avaliação final (parte teórica, parte prática e vídeo pitch).",
+  "professor": "Vitor Vieira",
+  "cidade": "Taboão da Serra",
+  "ano": "2026",
+  "repositorio_url": "",
+  "video_url": ""
+}

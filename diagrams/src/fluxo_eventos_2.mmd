@@ -1,0 +1,10 @@
+flowchart TD
+    E([Evento entregue ao Lambda]) --> K{PutItem condicional<br/>da chave de idempotência}
+    K -- já COMPLETED --> DUP[Retorna resultado anterior<br/>DUPLICATE_IGNORED]
+    K -- obtida --> X[Executa a lógica]
+    X -- sucesso --> OK[Marca COMPLETED com resultado]
+    X -- erro permanente<br/>dados inválidos, pedido inexistente,<br/>transição proibida --> PF[Marca COMPLETED como FAILED<br/>publica ProcessingFailed → SNS operações<br/>NÃO relança: sem retentativa inútil]
+    X -- erro transitório<br/>throttling, indisponibilidade --> TR[Libera a chave e relança a exceção]
+    TR --> RT{Retentativas<br/>restantes?}
+    RT -- sim --> E
+    RT -- não --> DLQ[[Dead Letter Queue]] --> AL[Alarme CloudWatch → SNS]

@@ -1,0 +1,17 @@
+sequenceDiagram
+    autonumber
+    participant SCH as EventBridge Scheduler
+    participant GR as λ generate_sales_report
+    participant DB as DynamoDB (GSI ByCreatedDay)
+    participant S3 as Amazon S3
+    participant EB as EventBridge
+    participant CW as CloudWatch Logs
+
+    SCH->>GR: invoke (Input JSON com scheduledTime)
+    GR->>GR: idempotência (report#schedule#scheduledTime)
+    GR->>DB: Query createdDay = hoje/ontem
+    DB-->>GR: pedidos do período
+    GR->>GR: consolida e gera CSV
+    GR->>S3: PutObject sales-report-*.csv e sales-summary-*.csv
+    GR->>EB: PutEvents SalesReportGenerated
+    GR->>CW: log estruturado + métrica EMF

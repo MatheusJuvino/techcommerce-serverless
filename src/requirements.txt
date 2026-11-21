@@ -1,0 +1,1 @@
+# As funções usam apenas a biblioteca padrão e o boto3 fornecido pelo runtime python3.12 da AWS Lambda.
